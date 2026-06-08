@@ -5,6 +5,7 @@ Global dedup on ``content_hash`` (first-seen-wins on the editorial fields).
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime
 from typing import Any
 
@@ -19,6 +20,10 @@ class ContentRepository(Repository):
         return self.session.scalar(
             select(Content).where(Content.content_hash == content_hash)
         )
+
+    def get(self, content_id: uuid.UUID) -> Content | None:
+        """One Content row by id (None if absent)."""
+        return self.session.get(Content, content_id)
 
     def upsert(
         self,

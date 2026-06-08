@@ -25,6 +25,24 @@ class UserContentStateRepository(Repository):
             )
         )
 
+    def get_many(
+        self, *, user_id: uuid.UUID, content_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, UserContentState]:
+        """The user's state rows for a set of content ids, keyed by ``content_id``.
+
+        Content with no row is simply absent from the dict — the caller defaults it to
+        ``starred=False`` / ``read_state='unread'`` (a missing row means neither star nor read).
+        """
+        if not content_ids:
+            return {}
+        rows = self.session.scalars(
+            select(UserContentState).where(
+                UserContentState.user_id == user_id,
+                UserContentState.content_id.in_(content_ids),
+            )
+        ).all()
+        return {row.content_id: row for row in rows}
+
     def upsert(
         self,
         *,

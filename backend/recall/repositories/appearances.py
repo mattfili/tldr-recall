@@ -5,8 +5,9 @@ from __future__ import annotations
 import uuid
 
 from sqlalchemy import func, select
+from sqlalchemy.orm import joinedload
 
-from recall.models import ContentAppearance
+from recall.models import Category, ContentAppearance, Edition, Issue
 from recall.repositories.base import Repository
 
 
@@ -18,6 +19,47 @@ class AppearanceRepository(Repository):
                 ContentAppearance.content_id == content_id,
             )
         )
+
+    # ── reads (#3) ──
+
+    def _with_provenance(self, stmt):
+        """Eager-load the joins every appearance->Content needs: content, its issue's edition,
+        and the appearance's category. Avoids per-row lazy loads when assembling Content.
+        """
+        return stmt.options(
+            joinedload(ContentAppearance.content),
+            joinedload(ContentAppearance.issue).joinedload(Issue.edition),
+            joinedload(ContentAppearance.category),
+        )
+
+    def list_for_issue(self, issue_id: uuid.UUID) -> list[ContentAppearance]:
+        """All appearances in an issue, ordered by the category's CAT_ORDER (``categories.sort``)
+        then by ``position``. Content/issue/edition/category are eager-loaded.
+
+        Appearances with no category sort to the end (NULLS LAST) so the grouping step never
+        crashes on an uncategorised sighting.
+        """
+        stmt = (
+            select(ContentAppearance)
+            .outerjoin(Category, Category.id == ContentAppearance.category_id)
+            .where(ContentAppearance.issue_id == issue_id)
+            .order_by(Category.sort.asc().nulls_last(), ContentAppearance.position)
+        )
+        return list(self.session.scalars(self._with_provenance(stmt)).unique().all())
+
+    def list_for_content(self, content_id: uuid.UUID) -> list[ContentAppearance]:
+        """All appearances of a Content, ordered earliest-first by (issue.published_at,
+        position) — so ``[0]`` is the PRIMARY appearance (ADR-0001). Provenance joins are
+        eager-loaded.
+        """
+        stmt = (
+            select(ContentAppearance)
+            .join(Issue, Issue.id == ContentAppearance.issue_id)
+            .join(Edition, Edition.id == Issue.edition_id)
+            .where(ContentAppearance.content_id == content_id)
+            .order_by(Issue.published_at.asc(), ContentAppearance.position.asc())
+        )
+        return list(self.session.scalars(self._with_provenance(stmt)).unique().all())
 
     def upsert(
         self,

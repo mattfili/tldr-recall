@@ -12,6 +12,17 @@ class EditionRepository(Repository):
     def get_by_key(self, key: str) -> Edition | None:
         return self.session.scalar(select(Edition).where(Edition.key == key))
 
+    def list_all(self) -> list[Edition]:
+        """All editions, ordered by created_at then key for a stable response.
+
+        The frontend controls rail order; the API just returns a deterministic list.
+        """
+        return list(
+            self.session.scalars(
+                select(Edition).order_by(Edition.created_at, Edition.key)
+            ).all()
+        )
+
     def upsert(self, *, key: str, name: str, sender_email: str | None = None) -> Edition:
         """Create the edition, or update its name/sender_email if it already exists."""
         edition = self.get_by_key(key)

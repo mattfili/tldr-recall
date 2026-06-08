@@ -1,8 +1,8 @@
 """FastAPI application factory.
 
-create_app() builds the app, wires CORS from config, and mounts the health router. The
-module-level ``app`` is what uvicorn serves (``recall.main:app``). Real endpoints beyond
-/health arrive in later issues.
+create_app() builds the app, wires CORS from config, and mounts the routers. The module-level
+``app`` is what uvicorn serves (``recall.main:app``). #3 adds the read endpoints: editions,
+issues (list/latest/detail), and content.
 """
 
 from __future__ import annotations
@@ -10,7 +10,10 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from recall.api.content import router as content_router
+from recall.api.editions import router as editions_router
 from recall.api.health import router as health_router
+from recall.api.issues import router as issues_router
 from recall.config import settings
 
 
@@ -26,6 +29,9 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(health_router)
+    app.include_router(editions_router)
+    app.include_router(issues_router)
+    app.include_router(content_router)
 
     return app
 

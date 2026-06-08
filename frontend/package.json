@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Recall web/desktop frontend — React + TS + Vite. M0 proof-of-wiring (renders /health).",
+  "description": "Recall web/desktop frontend — React + TS + Vite. Editorial view (#3): recall.css port + edition rail + masthead + category sections.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -13,11 +13,14 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.62.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^22.10.2",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
@@ -28,6 +31,7 @@
     "eslint-plugin-react-hooks": "^5.1.0",
     "eslint-plugin-react-refresh": "^0.4.16",
     "globals": "^15.13.0",
+    "jsdom": "^25.0.1",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.18.0",
     "vite": "^6.0.3",
