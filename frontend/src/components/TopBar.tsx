@@ -126,11 +126,13 @@ export function TopBar({
   onGo,
   dark,
   onToggleDark,
+  mob = false,
 }: {
   view: View;
   onGo: (v: View) => void;
   dark: boolean;
   onToggleDark: () => void;
+  mob?: boolean;
 }) {
   const [accountOpen, setAccountOpen] = useState(false);
 
@@ -182,19 +184,21 @@ export function TopBar({
           maxWidth: 1180,
           margin: "0 auto",
           height: 60,
-          padding: "0 28px",
+          // Tighter gutters on mobile so the nav + icons fit without overflow.
+          padding: mob ? "0 14px" : "0 28px",
           display: "flex",
           alignItems: "center",
-          gap: 26,
+          gap: mob ? 14 : 26,
         }}
       >
         <button
           onClick={() => onGo("editorial")}
           style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
         >
-          <Logo size={17} />
+          {/* mobile: drop the TL;DR mark, keep just the "Recall" wordmark */}
+          <Logo size={17} mark={!mob} />
         </button>
-        <nav style={{ display: "flex", gap: 22 }}>
+        <nav style={{ display: "flex", gap: mob ? 14 : 22 }}>
           <Tab id="editorial" label="Editorial" />
           <Tab id="library" label="Library" />
         </nav>
@@ -207,16 +211,23 @@ export function TopBar({
             onClick={() => onGo("search")}
           />
           <IconBtn name="filter" title="Filters" onClick={() => onGo("library")} />
-          <div style={{ width: 1, height: 22, background: "var(--line)", margin: "0 6px" }} />
+          {/* divider hides on mobile (search/filter/theme stay) */}
+          {!mob && (
+            <div style={{ width: 1, height: 22, background: "var(--line)", margin: "0 6px" }} />
+          )}
           <IconBtn name={dark ? "sun" : "moon"} title="Toggle theme" onClick={onToggleDark} />
-          <span data-account-btn style={{ display: "inline-flex" }}>
-            <IconBtn
-              name="user"
-              title="Account & admin"
-              on={accountOpen}
-              onClick={() => setAccountOpen((o) => !o)}
-            />
-          </span>
+          {/* account icon hides on mobile to save space — folds into a menu in the
+              real build (flagged in the design handoff) */}
+          {!mob && (
+            <span data-account-btn style={{ display: "inline-flex" }}>
+              <IconBtn
+                name="user"
+                title="Account & admin"
+                on={accountOpen}
+                onClick={() => setAccountOpen((o) => !o)}
+              />
+            </span>
+          )}
         </div>
       </div>
       {accountOpen && <AccountPanel onClose={() => setAccountOpen(false)} />}
