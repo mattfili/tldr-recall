@@ -1,7 +1,7 @@
 """Alembic environment.
 
-Wired to settings.database_url. target_metadata is None for now — ORM models and the
-first migration land in #2; until then autogenerate has nothing to compare against.
+Wired to settings.database_url and the ORM Base.metadata (#2). Importing ``recall.models``
+populates the metadata with every §5.2 table so autogenerate and offline rendering see them.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 from recall.config import settings
+from recall.models import Base
 
 config = context.config
 
@@ -21,8 +22,8 @@ config.set_main_option("sqlalchemy.url", settings.database_url)
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# target_metadata = None for now; #2 wires this to the ORM Base.metadata.
-target_metadata = None
+# ORM metadata for autogenerate / offline rendering.
+target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:

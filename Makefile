@@ -31,8 +31,8 @@ lint: ## Lint backend (ruff) + frontend (eslint)
 	cd backend && uv run ruff check .
 	cd frontend && npm run lint
 
-migrate: ## Run database migrations
-	@echo "added in #2"
+migrate: ## Run database migrations (alembic upgrade head)
+	cd backend && uv run alembic upgrade head
 
-seed: ## Seed the database from the prototype fixtures
-	@echo "added in #2"
+seed: ## Seed the database from the prototype fixture
+	cd backend && uv run recall seed
