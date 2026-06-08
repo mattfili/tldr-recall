@@ -1,0 +1,26 @@
+# Local development infrastructure for Recall (M0).
+# Brings up Postgres with pgvector available. Migrations (which run
+# `CREATE EXTENSION IF NOT EXISTS vector;`) land in #2 — this image just
+# ships the extension so it can be created.
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: recall-db
+    environment:
+      POSTGRES_USER: recall
+      POSTGRES_PASSWORD: recall
+      POSTGRES_DB: recall
+    ports:
+      - "5432:5432"
+    volumes:
+      - recall-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U recall -d recall"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  recall-db-data:
