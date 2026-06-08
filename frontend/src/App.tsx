@@ -10,11 +10,13 @@ import { EditorialView } from "./components/EditorialView";
 import { PlaceholderView } from "./components/PlaceholderView";
 import { TopBar } from "./components/TopBar";
 import type { View } from "./components/TopBar";
+import { useMobile } from "./useMobile";
 import { usePrefs } from "./usePrefs";
 
 export default function App() {
   const { prefs, toggleDark, setEdition } = usePrefs();
   const [view, setView] = useState<View>("editorial");
+  const mob = useMobile();
 
   const editionsQuery = useEditions();
   const editions = editionsQuery.data ?? [];
@@ -34,7 +36,7 @@ export default function App() {
       className={"rc app" + (prefs.dark ? " dark" : "")}
       style={{ minHeight: "100vh", background: "var(--paper)" }}
     >
-      <TopBar view={view} onGo={go} dark={prefs.dark} onToggleDark={toggleDark} />
+      <TopBar view={view} onGo={go} dark={prefs.dark} onToggleDark={toggleDark} mob={mob} />
       <main>
         {view === "editorial" &&
           (editions.length > 0 ? (
@@ -42,6 +44,7 @@ export default function App() {
               editions={editions}
               edition={prefs.edition}
               onSetEdition={setEditionAndScroll}
+              mob={mob}
             />
           ) : editionsQuery.isError ? (
             <div style={{ maxWidth: 1180, margin: "0 auto", padding: "60px 28px", color: "var(--ink-3)" }}>

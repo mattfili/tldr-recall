@@ -31,10 +31,12 @@ export function EditorialView({
   editions,
   edition,
   onSetEdition,
+  mob = false,
 }: {
   editions: Edition[];
   edition: string;
   onSetEdition: (key: string) => void;
+  mob?: boolean;
 }) {
   const railEditions = useMemo(() => orderedEditions(editions), [editions]);
 
@@ -59,63 +61,108 @@ export function EditorialView({
   const canOlder = issues.length > 0 && safeIdx < issues.length - 1;
 
   return (
-    <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 28px" }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 60, padding: "40px 0 90px" }}>
-        {/* vertical edition rail — left-aligned with the logo */}
-        <nav
-          style={{
-            width: 168,
-            flex: "none",
-            position: "sticky",
-            top: 84,
-            display: "flex",
-            flexDirection: "column",
-            gap: 2,
-          }}
-        >
-          {railEditions.map((e) => {
-            const on = edition === e.key;
-            return (
-              <button
-                key={e.key}
-                onClick={() => onSetEdition(e.key)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  font: "inherit",
-                  textAlign: "left",
-                  padding: "8px 0",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 2,
-                  color: on ? "var(--ink)" : "var(--ink-4)",
-                  transition: "color .12s",
-                }}
-                onMouseEnter={(ev) => {
-                  if (!on) ev.currentTarget.style.color = "var(--ink-2)";
-                }}
-                onMouseLeave={(ev) => {
-                  if (!on) ev.currentTarget.style.color = "var(--ink-4)";
-                }}
-              >
-                <span
+    <div style={{ maxWidth: 1180, margin: "0 auto", padding: mob ? "0 14px" : "0 28px" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          // mobile stacks: edition pill-row on top, body full-width below
+          flexDirection: mob ? "column" : "row",
+          gap: mob ? 0 : 60,
+          padding: mob ? "20px 0 60px" : "40px 0 90px",
+        }}
+      >
+        {mob ? (
+          // mobile: horizontal scrolling pill row above the body
+          <nav
+            style={{
+              display: "flex",
+              flexDirection: "row",
+              gap: 8,
+              overflowX: "auto",
+              width: "100%",
+              paddingBottom: 6,
+              marginBottom: 18,
+              WebkitOverflowScrolling: "touch",
+            }}
+          >
+            {railEditions.map((e) => {
+              const on = edition === e.key;
+              return (
+                <button
+                  key={e.key}
+                  onClick={() => onSetEdition(e.key)}
+                  className={"rc-chip" + (on ? " accent on" : "")}
                   style={{
-                    fontSize: 17,
+                    padding: "7px 15px",
+                    fontSize: 14.5,
                     fontWeight: on ? 700 : 600,
-                    letterSpacing: "-0.02em",
-                    color: on ? "var(--accent)" : "inherit",
+                    letterSpacing: "-0.01em",
+                    flex: "none",
                   }}
                 >
                   {e.name}
-                </span>
-              </button>
-            );
-          })}
-        </nav>
+                </button>
+              );
+            })}
+          </nav>
+        ) : (
+          // desktop: vertical edition rail — left-aligned with the logo
+          <nav
+            style={{
+              width: 168,
+              flex: "none",
+              position: "sticky",
+              top: 84,
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+            }}
+          >
+            {railEditions.map((e) => {
+              const on = edition === e.key;
+              return (
+                <button
+                  key={e.key}
+                  onClick={() => onSetEdition(e.key)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    font: "inherit",
+                    textAlign: "left",
+                    padding: "8px 0",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 2,
+                    color: on ? "var(--ink)" : "var(--ink-4)",
+                    transition: "color .12s",
+                  }}
+                  onMouseEnter={(ev) => {
+                    if (!on) ev.currentTarget.style.color = "var(--ink-2)";
+                  }}
+                  onMouseLeave={(ev) => {
+                    if (!on) ev.currentTarget.style.color = "var(--ink-4)";
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 17,
+                      fontWeight: on ? 700 : 600,
+                      letterSpacing: "-0.02em",
+                      color: on ? "var(--accent)" : "inherit",
+                    }}
+                  >
+                    {e.name}
+                  </span>
+                </button>
+              );
+            })}
+          </nav>
+        )}
 
-        {/* body */}
-        <div style={{ width: 668, maxWidth: "100%" }}>
+        {/* body — fixed reading column on desktop, full-width on mobile */}
+        <div style={{ width: mob ? "100%" : 668, maxWidth: "100%" }}>
           {detail ? (
             <>
               {/* masthead */}
@@ -155,7 +202,7 @@ export function EditorialView({
               </div>
               <h1
                 style={{
-                  fontSize: 50,
+                  fontSize: mob ? 38 : 50,
                   fontWeight: 800,
                   letterSpacing: "-0.045em",
                   margin: "0 0 16px",
