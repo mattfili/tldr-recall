@@ -41,6 +41,14 @@ jobs:
         working-directory: backend
         run: uv sync
 
+      - name: Migrate + seed database
+        # The #3 read-endpoint contract tests run against the migrated + seeded DB.
+        # (The #2 migration test manages its own throwaway recall_test DB separately.)
+        working-directory: backend
+        run: |
+          uv run alembic upgrade head
+          uv run recall seed
+
       - name: Lint (ruff)
         working-directory: backend
         run: uv run ruff check .

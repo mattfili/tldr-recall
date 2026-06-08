@@ -28,13 +28,19 @@ client = TestClient(app)
 
 
 def _seeded() -> bool:
-    """True only if the DB is reachable AND looks seeded (>=3 editions)."""
+    """True only if the DB is reachable, migrated, AND looks seeded (>=3 editions).
+
+    Evaluated at collection time, so it must NEVER raise: a reachable-but-unmigrated
+    DB (e.g. a fresh CI Postgres before the migrate+seed step) makes ``/editions``
+    raise ``UndefinedTable`` — caught here so the module skips cleanly instead of
+    erroring during collection.
+    """
     try:
         ping()
+        resp = client.get("/editions")
+        return resp.status_code == 200 and len(resp.json()) >= 3
     except Exception:
         return False
-    resp = client.get("/editions")
-    return resp.status_code == 200 and len(resp.json()) >= 3
 
 
 pytestmark = pytest.mark.skipif(
