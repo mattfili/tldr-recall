@@ -1,0 +1,41 @@
+# ── OS / editor ──
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# ── secrets / env ──
+.env
+.env.*
+!.env.example
+
+# ── local working notes (per CLAUDE.md convention) ──
+.scratch/
+
+# ── redundant archive of the prototype ──
+tldr-web.zip
+
+# ── Python / backend ──
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+*.egg-info/
+
+# ── Node / frontend / desktop ──
+node_modules/
+dist/
+dist-ssr/
+build/
+out/
+*.local
+.vite/
+
+# ── logs ──
+*.log
+npm-debug.log*
