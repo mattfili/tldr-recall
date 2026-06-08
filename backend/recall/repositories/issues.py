@@ -6,8 +6,9 @@ import uuid
 from datetime import date
 
 from sqlalchemy import func, select
+from sqlalchemy.orm import joinedload
 
-from recall.models import Issue
+from recall.models import ContentAppearance, Edition, Issue
 from recall.repositories.base import Repository
 
 
@@ -20,6 +21,88 @@ class IssueRepository(Repository):
                 Issue.edition_id == edition_id, Issue.issue_number == issue_number
             )
         )
+
+    # ── reads (#3) ──
+
+    def get(self, issue_id: uuid.UUID) -> Issue | None:
+        """One issue with its edition eager-loaded."""
+        return self.session.scalar(
+            select(Issue).options(joinedload(Issue.edition)).where(Issue.id == issue_id)
+        )
+
+    def list_summaries(
+        self,
+        *,
+        edition_key: str | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[Issue], int]:
+        """Issues NEWEST FIRST (published_at desc, then issue_number desc), paginated.
+
+        Returns ``(issues, total)`` where ``total`` is the unpaginated count for the same
+        filter. Editions are eager-loaded for the IssueSummary response.
+        """
+        base = select(Issue).join(Edition, Edition.id == Issue.edition_id)
+        if edition_key is not None:
+            base = base.where(Edition.key == edition_key)
+
+        total = (
+            self.session.scalar(
+                select(func.count()).select_from(base.order_by(None).subquery())
+            )
+            or 0
+        )
+
+        issues = list(
+            self.session.scalars(
+                base.options(joinedload(Issue.edition))
+                .order_by(Issue.published_at.desc(), Issue.issue_number.desc())
+                .limit(limit)
+                .offset(offset)
+            ).all()
+        )
+        return issues, total
+
+    def get_latest(self, *, edition_key: str | None = None) -> Issue | None:
+        """Newest issue of an edition (or newest overall if edition omitted).
+
+        Newest = published_at desc, then issue_number desc.
+        """
+        stmt = (
+            select(Issue)
+            .join(Edition, Edition.id == Issue.edition_id)
+            .options(joinedload(Issue.edition))
+            .order_by(Issue.published_at.desc(), Issue.issue_number.desc())
+            .limit(1)
+        )
+        if edition_key is not None:
+            stmt = stmt.where(Edition.key == edition_key)
+        return self.session.scalar(stmt)
+
+    def content_count(self, issue_id: uuid.UUID) -> int:
+        """Number of appearances (content items) in an issue."""
+        return (
+            self.session.scalar(
+                select(func.count())
+                .select_from(ContentAppearance)
+                .where(ContentAppearance.issue_id == issue_id)
+            )
+            or 0
+        )
+
+    def content_counts(self, issue_ids: list[uuid.UUID]) -> dict[uuid.UUID, int]:
+        """Appearance counts for many issues at once (avoids an N+1 in the list endpoint)."""
+        if not issue_ids:
+            return {}
+        rows = self.session.execute(
+            select(
+                ContentAppearance.issue_id, func.count(ContentAppearance.id)
+            )
+            .where(ContentAppearance.issue_id.in_(issue_ids))
+            .group_by(ContentAppearance.issue_id)
+        ).all()
+        counts = {issue_id: count for issue_id, count in rows}
+        return {issue_id: counts.get(issue_id, 0) for issue_id in issue_ids}
 
     def upsert(
         self,

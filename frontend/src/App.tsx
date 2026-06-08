@@ -1,113 +1,71 @@
-// M0 proof-of-wiring screen. Fetches GET /health on mount and renders
-// status / db / embedder / version with loading + error states.
-// This is NOT the real UI (that's #3 — recall.css port + three views).
-// Styling is intentionally minimal inline CSS; do not port recall.css yet.
+// Recall app root (#3 — the real Editorial UI port).
+// Owns view + edition state, wires persisted dark-mode prefs, and renders the
+// recall.css design system. The app root carries className "rc app" (+" dark")
+// so the .rc / .rc.dark CSS variables apply.
 
-import { useEffect, useState } from "react";
-import { getHealth, API_BASE_URL } from "./api/client";
-import type { Health } from "./types";
-import { platform } from "./platform";
-
-type LoadState =
-  | { kind: "loading" }
-  | { kind: "ok"; health: Health }
-  | { kind: "error"; message: string };
-
-const styles = {
-  page: {
-    fontFamily: "system-ui, sans-serif",
-    maxWidth: 560,
-    margin: "48px auto",
-    padding: "0 16px",
-    color: "#1a1a1a",
-  },
-  card: {
-    border: "1px solid #ddd",
-    borderRadius: 8,
-    padding: 20,
-    background: "#fff",
-  },
-  row: {
-    display: "flex",
-    justifyContent: "space-between",
-    padding: "8px 0",
-    borderBottom: "1px solid #f0f0f0",
-    fontSize: 14,
-  },
-  key: { color: "#666" },
-  mono: { fontFamily: "ui-monospace, monospace" },
-} as const;
-
-function isOk(db: string): boolean {
-  return db === "ok";
-}
-
-function HealthPanel({ health }: { health: Health }) {
-  return (
-    <div style={styles.card}>
-      <div style={styles.row}>
-        <span style={styles.key}>status</span>
-        <span style={styles.mono}>{health.status}</span>
-      </div>
-      <div style={styles.row}>
-        <span style={styles.key}>db</span>
-        <span style={{ ...styles.mono, color: isOk(health.db) ? "#137a3f" : "#b00020" }}>
-          {health.db}
-        </span>
-      </div>
-      <div style={styles.row}>
-        <span style={styles.key}>embedder</span>
-        <span style={styles.mono}>{health.embedder}</span>
-      </div>
-      <div style={{ ...styles.row, borderBottom: "none" }}>
-        <span style={styles.key}>version</span>
-        <span style={styles.mono}>{health.version}</span>
-      </div>
-    </div>
-  );
-}
+import { useState } from "react";
+import "./styles/recall.css";
+import { useEditions } from "./api/queries";
+import { EditorialView } from "./components/EditorialView";
+import { PlaceholderView } from "./components/PlaceholderView";
+import { TopBar } from "./components/TopBar";
+import type { View } from "./components/TopBar";
+import { usePrefs } from "./usePrefs";
 
 export default function App() {
-  const [state, setState] = useState<LoadState>({ kind: "loading" });
+  const { prefs, toggleDark, setEdition } = usePrefs();
+  const [view, setView] = useState<View>("editorial");
 
-  useEffect(() => {
-    let cancelled = false;
-    getHealth()
-      .then((health) => {
-        if (!cancelled) setState({ kind: "ok", health });
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        const message = err instanceof Error ? err.message : String(err);
-        setState({ kind: "error", message });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const editionsQuery = useEditions();
+  const editions = editionsQuery.data ?? [];
+
+  const go = (v: View) => {
+    setView(v);
+    window.scrollTo({ top: 0 });
+  };
+
+  const setEditionAndScroll = (key: string) => {
+    setEdition(key);
+    window.scrollTo({ top: 0 });
+  };
 
   return (
-    <main style={styles.page}>
-      <h1 style={{ fontSize: 22, marginBottom: 4 }}>Recall</h1>
-      <p style={{ color: "#666", marginTop: 0, fontSize: 14 }}>
-        M0 health check — client &rarr; API &rarr; DB. Backend:{" "}
-        <span style={styles.mono}>{API_BASE_URL}</span>{" "}
-        ({platform.isDesktop ? "desktop" : "web"})
-      </p>
-
-      {state.kind === "loading" && <p>Checking backend health&hellip;</p>}
-
-      {state.kind === "error" && (
-        <div style={{ ...styles.card, borderColor: "#b00020", color: "#b00020" }}>
-          <strong>Could not reach backend.</strong>
-          <p style={{ ...styles.mono, fontSize: 13, marginBottom: 0 }}>{state.message}</p>
-          <p style={{ fontSize: 13, color: "#666" }}>
-            Is the API running on <span style={styles.mono}>{API_BASE_URL}</span>?
-          </p>
-        </div>
-      )}
-
-      {state.kind === "ok" && <HealthPanel health={state.health} />}
-    </main>
+    <div
+      className={"rc app" + (prefs.dark ? " dark" : "")}
+      style={{ minHeight: "100vh", background: "var(--paper)" }}
+    >
+      <TopBar view={view} onGo={go} dark={prefs.dark} onToggleDark={toggleDark} />
+      <main>
+        {view === "editorial" &&
+          (editions.length > 0 ? (
+            <EditorialView
+              editions={editions}
+              edition={prefs.edition}
+              onSetEdition={setEditionAndScroll}
+            />
+          ) : editionsQuery.isError ? (
+            <div style={{ maxWidth: 1180, margin: "0 auto", padding: "60px 28px", color: "var(--ink-3)" }}>
+              Could not reach the backend. Is the API running?
+            </div>
+          ) : (
+            <div style={{ maxWidth: 1180, margin: "0 auto", padding: "60px 28px", color: "var(--ink-4)" }}>
+              <span className="rc-spin" style={{ marginRight: 10 }} />
+              Loading editions…
+            </div>
+          ))}
+        {view === "library" && (
+          <PlaceholderView
+            title="Library"
+            note="Your saved-content library with filters lands in a later milestone."
+          />
+        )}
+        {view === "search" && (
+          <PlaceholderView
+            title="Smart search"
+            note="Ask your library in plain English — semantic search lands in a later milestone."
+          />
+        )}
+      </main>
+    </div>
   );
 }
