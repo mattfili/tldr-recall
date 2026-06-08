@@ -1,0 +1,25 @@
+appId: com.trillianthealth.recall
+productName: Recall
+
+# Unsigned local dev builds are allowed; signing/notarization is a later concern.
+directories:
+  output: release
+  buildResources: build
+
+# Ship the compiled main-process code plus the platform-agnostic frontend
+# build that the shell loads at runtime (../frontend/dist/index.html).
+files:
+  - dist/**/*
+  - package.json
+extraResources:
+  - from: ../frontend/dist
+    to: ../frontend/dist
+
+mac:
+  target:
+    - dmg
+  category: public.app-category.productivity
+
+win:
+  target:
+    - nsis
