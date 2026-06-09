@@ -3,6 +3,7 @@
 // (see SHARED CONTRACT: backend on http://localhost:8000).
 
 import type {
+  CategoryRef,
   Content,
   Edition,
   Health,
@@ -84,4 +85,39 @@ export function getLatestIssue(edition?: string): Promise<IssueDetail> {
 /** GET /content/{id} -> the canonical Content object. */
 export function getContent(id: string): Promise<Content> {
   return getJson<Content>(`/content/${id}`);
+}
+
+/**
+ * GET /library?type=&edition=&category=&starred=&limit=&offset= -> Page<Content>.
+ *
+ * The Library is the WHOLE ingested corpus, filterable (ADR-0001): dimensions AND
+ * together, values within a dimension OR. `types`/`editions`/`categories` are sent as
+ * REPEATABLE params (e.g. ?type=article&type=repo) matching the backend's list[str].
+ * `starred=true` is only sent when true. There is NO density / read_state param (grilled
+ * scope + ADR-0002). `total` in the envelope is the SINGLE in-view count.
+ */
+export function getLibrary(
+  params: {
+    types?: string[];
+    editions?: string[];
+    categories?: string[];
+    starred?: boolean;
+    limit?: number;
+    offset?: number;
+  } = {},
+): Promise<Page<Content>> {
+  const qs = new URLSearchParams();
+  for (const v of params.types ?? []) qs.append("type", v);
+  for (const v of params.editions ?? []) qs.append("edition", v);
+  for (const v of params.categories ?? []) qs.append("category", v);
+  if (params.starred) qs.set("starred", "true");
+  if (params.limit != null) qs.set("limit", String(params.limit));
+  if (params.offset != null) qs.set("offset", String(params.offset));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return getJson<Page<Content>>(`/library${suffix}`);
+}
+
+/** GET /categories -> [{slug, label, hue}] ordered by sort (CAT_ORDER). */
+export function getCategories(): Promise<CategoryRef[]> {
+  return getJson<CategoryRef[]>("/categories");
 }

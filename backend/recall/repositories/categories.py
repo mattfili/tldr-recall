@@ -15,6 +15,16 @@ class CategoryRepository(Repository):
     def get_by_slug(self, slug: str) -> Category | None:
         return self.session.scalar(select(Category).where(Category.slug == slug))
 
+    def list_all(self) -> list[Category]:
+        """All categories ordered by ``sort`` (the slug's index in CAT_ORDER).
+
+        The FilterPanel's Category group renders categories in this canonical order.
+        Mirrors ``EditionRepository.list_all``.
+        """
+        return list(
+            self.session.scalars(select(Category).order_by(Category.sort)).all()
+        )
+
     def upsert(self, *, slug: str, label: str, hue: str, sort: int) -> Category:
         """Create the category, or update label/hue/sort if it already exists.
 

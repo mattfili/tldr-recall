@@ -6,15 +6,20 @@
 // recorded live shapes (editions, /issues?edition=tldr, /issues/{id}).
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
-import type { Edition, IssueDetail, IssueSummary, Page } from "./types";
+import type { Content, CategoryRef, Edition, IssueDetail, IssueSummary, Page } from "./types";
 
 const EDITIONS: Edition[] = [
   { key: "ai", name: "TLDR AI" },
   { key: "founders", name: "TLDR Founders" },
   { key: "tldr", name: "TLDR" },
+];
+
+const CATEGORIES: CategoryRef[] = [
+  { slug: "headlines", label: "Headlines & Trends", hue: "var(--c-strategy)" },
+  { slug: "bigtech", label: "Big Tech & Startups", hue: "var(--c-bigtech)" },
 ];
 
 const TLDR_ISSUES: Page<IssueSummary> = {
@@ -73,20 +78,75 @@ const TLDR_DETAIL: IssueDetail = {
   ],
 };
 
+const LIBRARY_PAGE: Page<Content> = {
+  items: [
+    {
+      id: "91b6b997-fe16-4e09-b07c-4119ceaaf241",
+      title: "Nvidia Introduces First PCs Designed for AI Agents",
+      summary: "Nvidia unveiled prototype PCs for running AI agents.",
+      content_type: "article",
+      read_minutes: 6,
+      url: "https://theverge.com",
+      domain: "theverge.com",
+      tags: ["nvidia"],
+      resources: null,
+      edition: { key: "tldr", name: "TLDR" },
+      category: { slug: "bigtech", label: "Big Tech & Startups", hue: "var(--c-bigtech)" },
+      issue: {
+        id: "5e5e6fe1-051c-475e-91c6-f0e941eb1509",
+        issue_number: "#3120",
+        published_at: "2026-06-02",
+      },
+      appearances: [
+        {
+          issue: {
+            id: "5e5e6fe1-051c-475e-91c6-f0e941eb1509",
+            issue_number: "#3120",
+            published_at: "2026-06-02",
+          },
+          edition: { key: "tldr", name: "TLDR" },
+          category: { slug: "bigtech", label: "Big Tech & Startups", hue: "var(--c-bigtech)" },
+          position: 0,
+        },
+      ],
+      starred: false,
+      read_state: "unread",
+    },
+  ],
+  total: 44,
+  limit: 16,
+  offset: 0,
+};
+
 function routeFetch(url: string): unknown {
   if (url.endsWith("/editions")) return EDITIONS;
+  if (url.endsWith("/categories")) return CATEGORIES;
+  if (url.includes("/library")) return LIBRARY_PAGE;
   if (url.includes("/issues?")) return TLDR_ISSUES;
   if (url.includes("/issues/5e5e6fe1")) return TLDR_DETAIL;
   throw new Error(`unexpected fetch: ${url}`);
 }
 
+// jsdom lacks IntersectionObserver (the Library infinite-scroll sentinel uses it). Real
+// browsers always provide it; stub a no-op here so the LibraryView effect can mount.
+class NoopIntersectionObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+  takeRecords() {
+    return [];
+  }
+}
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   localStorage.clear();
 });
 
 function renderApp() {
+  vi.stubGlobal("IntersectionObserver", NoopIntersectionObserver);
   vi.stubGlobal(
     "fetch",
     vi.fn((input: unknown) => {
@@ -131,5 +191,41 @@ describe("<App/> Editorial render", () => {
     await waitFor(() => expect(screen.getByText("TLDR Founders")).toBeTruthy());
     expect(screen.getByText("TLDR AI")).toBeTruthy();
     // The TopBar logo + masthead also say "TLDR"; the rail button is present too.
+  });
+});
+
+describe("<App/> Library render", () => {
+  it("switches to Library, shows the single in-view total, and renders rows", async () => {
+    renderApp();
+
+    // Switch to the Library tab.
+    fireEvent.click(screen.getByRole("button", { name: "Library" }));
+
+    // Library header + the SINGLE in-view count (the envelope total, 44 unfiltered).
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { level: 1, name: "Library" })).toBeTruthy(),
+    );
+    // The row title renders as a link (Library list row) once the page loads.
+    await waitFor(() =>
+      expect(
+        screen.getByRole("link", { name: "Nvidia Introduces First PCs Designed for AI Agents" }),
+      ).toBeTruthy(),
+    );
+    expect(screen.getByText("44")).toBeTruthy();
+  });
+
+  it("toggling the filter icon opens the FilterPanel (Edition/Type/Category groups)", async () => {
+    renderApp();
+
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+
+    // The FilterPanel renders its four groups; assert the renamed 'Type' group + chips.
+    await waitFor(() => expect(screen.getByText("Type")).toBeTruthy());
+    expect(screen.getByRole("button", { name: "Articles" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "GitHub" })).toBeTruthy();
+    // Category group reflects the CAT_ORDER /categories payload (once it loads).
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Big Tech & Startups" })).toBeTruthy(),
+    );
   });
 });

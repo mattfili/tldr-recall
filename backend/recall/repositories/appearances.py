@@ -61,6 +61,33 @@ class AppearanceRepository(Repository):
         )
         return list(self.session.scalars(self._with_provenance(stmt)).unique().all())
 
+    def list_for_contents(
+        self, content_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, list[ContentAppearance]]:
+        """Batch provenance loader — all appearances for many Contents at once (avoids an N+1
+        in the library endpoint).
+
+        Same ordering + eager-load as ``list_for_content`` (join Issue+Edition, order earliest-
+        first by (issue.published_at, position)), but for a set of content ids. Rows arrive
+        ordered GLOBALLY by published_at/position; grouping them in iteration order keeps each
+        per-content list earliest-first, so ``[content_id][0]`` is that Content's PRIMARY
+        appearance (ADR-0001). Returns ``{}`` for empty input.
+        """
+        if not content_ids:
+            return {}
+        stmt = (
+            select(ContentAppearance)
+            .join(Issue, Issue.id == ContentAppearance.issue_id)
+            .join(Edition, Edition.id == Issue.edition_id)
+            .where(ContentAppearance.content_id.in_(content_ids))
+            .order_by(Issue.published_at.asc(), ContentAppearance.position.asc())
+        )
+        rows = self.session.scalars(self._with_provenance(stmt)).unique().all()
+        grouped: dict[uuid.UUID, list[ContentAppearance]] = {}
+        for ap in rows:
+            grouped.setdefault(ap.content_id, []).append(ap)
+        return grouped
+
     def upsert(
         self,
         *,

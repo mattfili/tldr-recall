@@ -5,23 +5,29 @@ import { useCallback, useEffect, useState } from "react";
 
 const LS_KEY = "recall-prefs";
 const DEFAULT_EDITION = "tldr";
+const DEFAULT_DENSITY: Density = "compact";
+
+/** Library row density. Presentation only (like dark mode) — NEVER a query param. */
+export type Density = "compact" | "expanded";
 
 export interface Prefs {
   dark: boolean;
   edition: string;
+  density: Density;
 }
 
 function load(): Prefs {
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return { dark: false, edition: DEFAULT_EDITION };
+    if (!raw) return { dark: false, edition: DEFAULT_EDITION, density: DEFAULT_DENSITY };
     const parsed = JSON.parse(raw) as Partial<Prefs>;
     return {
       dark: parsed.dark ?? false,
       edition: parsed.edition ?? DEFAULT_EDITION,
+      density: parsed.density ?? DEFAULT_DENSITY,
     };
   } catch {
-    return { dark: false, edition: DEFAULT_EDITION };
+    return { dark: false, edition: DEFAULT_EDITION, density: DEFAULT_DENSITY };
   }
 }
 
@@ -47,6 +53,10 @@ export function usePrefs() {
     (edition: string) => setPrefs((p) => ({ ...p, edition })),
     [],
   );
+  const setDensity = useCallback(
+    (density: Density) => setPrefs((p) => ({ ...p, density })),
+    [],
+  );
 
-  return { prefs, toggleDark, setEdition };
+  return { prefs, toggleDark, setEdition, setDensity };
 }

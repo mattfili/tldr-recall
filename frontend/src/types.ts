@@ -139,3 +139,25 @@ export interface IssueDetail {
   issue: IssueMeta;
   sections: IssueSection[];
 }
+
+// ── client-only state (NOT wire shapes) ──
+//
+// The wire types above mirror schemas/common.py verbatim. GET /library returns
+// Page<Content> and GET /categories returns CategoryRef[] — both already exist
+// above, so #4 adds NO new response shape. The type below is purely client-side
+// Library filter state, shared between App / FilterPanel / LibraryView.
+
+/**
+ * Library filter state (ADR-0001 — dimensions AND together, values within OR).
+ *  - `types`      -> content_type values ("article" | "repo" | "paper" | …).
+ *  - `editions`   -> edition keys (has-appearance-in).
+ *  - `categories` -> category slugs (has-appearance-in).
+ *  - `starredOnly`-> the stub user's starred Content.
+ * Density is NOT here — it is a presentation pref (usePrefs/localStorage), not a filter.
+ */
+export interface LibraryFilters {
+  types: string[];
+  editions: string[];
+  categories: string[];
+  starredOnly: boolean;
+}

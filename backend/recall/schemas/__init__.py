@@ -7,6 +7,7 @@ IssueDetail / Content / the generic Page envelope.
 
 from __future__ import annotations
 
+from recall.schemas.category import Category
 from recall.schemas.common import (
     Appearance,
     CategoryRef,
@@ -20,6 +21,7 @@ from recall.schemas.issue import IssueDetail, IssueMeta, IssueSection, IssueSumm
 
 __all__ = [
     "Appearance",
+    "Category",
     "CategoryRef",
     "Content",
     "Edition",
