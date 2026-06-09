@@ -17,6 +17,29 @@ from recall.config import settings
 from recall.embeddings.base import Embedder, Reranker
 
 
+def active_model_name(backend: str | None = None) -> str:
+    """The ACTIVE embedding model name, computed from CONFIG ONLY (#7 degradation gate).
+
+    This is the first input to the key-free degradation gate (ADR-0003): the search service
+    resolves the active model name WITHOUT instantiating an embedder and WITHOUT importing
+    openai, then checks ``EmbeddingRepository.count_for(combined, active_model)``. Each embedder's
+    ``.name`` equals the value this returns for its backend, so rows written under a backend carry
+    ``model == active_model_name(that_backend)``.
+
+    * ``cloud`` -> ``settings.recall_embed_model`` (== ``CloudEmbedder.name``).
+    * ``fake``  -> ``f"fake-{settings.recall_embed_dim}"`` (== ``FakeEmbedder.name``).
+    * ``qwen``  -> not yet implemented.
+    """
+    backend = (backend or settings.recall_embed_backend or "").lower()
+    if backend == "cloud":
+        return settings.recall_embed_model
+    if backend == "fake":
+        return f"fake-{settings.recall_embed_dim}"
+    if backend == "qwen":
+        raise NotImplementedError("qwen embed backend lands later")
+    raise ValueError(f"unknown embed backend: {backend!r}")
+
+
 def get_embedder(backend: str | None = None) -> Embedder:
     """Return the configured Embedder. ``backend`` overrides ``settings.recall_embed_backend``."""
     backend = (backend or settings.recall_embed_backend or "").lower()

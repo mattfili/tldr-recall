@@ -12,12 +12,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from recall.api.categories import router as categories_router
+from recall.api.collections import router as collections_router
 from recall.api.content import router as content_router
 from recall.api.editions import router as editions_router
 from recall.api.health import router as health_router
 from recall.api.issues import router as issues_router
 from recall.api.library import router as library_router
 from recall.api.saves import router as saves_router
+from recall.api.search import router as search_router
 from recall.config import settings
 
 
@@ -39,6 +41,8 @@ def create_app() -> FastAPI:
     app.include_router(library_router)
     app.include_router(categories_router)
     app.include_router(saves_router)
+    app.include_router(search_router)
+    app.include_router(collections_router)
 
     return app
 

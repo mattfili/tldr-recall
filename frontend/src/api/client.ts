@@ -4,6 +4,7 @@
 
 import type {
   CategoryRef,
+  CollectionRef,
   Content,
   Edition,
   Health,
@@ -12,6 +13,8 @@ import type {
   IssueSummary,
   Page,
   SaveState,
+  SearchRequest,
+  SearchResponse,
 } from "../types";
 
 export const API_BASE_URL: string =
@@ -55,6 +58,26 @@ async function sendJson<T>(method: "PUT" | "DELETE", path: string): Promise<T> {
   }
   if (!res.ok) {
     throw new ApiError(`${method} ${path} failed: ${res.status} ${res.statusText}`, res.status);
+  }
+  return (await res.json()) as T;
+}
+
+/** POST with a JSON body. Mirrors getJson's error handling (network + non-2xx -> ApiError). */
+async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const url = `${API_BASE_URL}${path}`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : String(cause);
+    throw new ApiError(`Network error reaching ${url}: ${message}`, 0);
+  }
+  if (!res.ok) {
+    throw new ApiError(`POST ${path} failed: ${res.status} ${res.statusText}`, res.status);
   }
   return (await res.json()) as T;
 }
@@ -159,4 +182,33 @@ export function deleteSave(id: string): Promise<SaveState> {
  */
 export function putIssueRead(id: string): Promise<IssueReadState> {
   return sendJson<IssueReadState>("PUT", `/issues/${id}/read`);
+}
+
+/**
+ * POST /search -> SearchResponse (#7). One unified search box over the WHOLE Library; the body's
+ * `filters` AND with the intent the backend detects from `query`. Each hit is a Content superset
+ * (+ score + hidden match_explanation). `total` is the fused result count for paging.
+ */
+export function postSearch(body: SearchRequest): Promise<SearchResponse> {
+  return postJson<SearchResponse>("/search", body);
+}
+
+/** GET /collections -> [{slug, label, query, hue}] — the seeded smart collections. */
+export function getCollections(): Promise<CollectionRef[]> {
+  return getJson<CollectionRef[]>("/collections");
+}
+
+/**
+ * GET /collections/{slug}/items?limit=&offset= -> SearchResponse. Resolves the collection's
+ * stored NL query LIVE through the same search pipeline (no materialised membership).
+ */
+export function getCollectionItems(
+  slug: string,
+  params: { limit?: number; offset?: number } = {},
+): Promise<SearchResponse> {
+  const qs = new URLSearchParams();
+  if (params.limit != null) qs.set("limit", String(params.limit));
+  if (params.offset != null) qs.set("offset", String(params.offset));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return getJson<SearchResponse>(`/collections/${encodeURIComponent(slug)}/items${suffix}`);
 }

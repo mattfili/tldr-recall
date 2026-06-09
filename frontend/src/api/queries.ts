@@ -11,16 +11,24 @@ import {
 import {
   deleteSave,
   getCategories,
+  getCollections,
   getContent,
   getEditions,
   getIssue,
   getIssues,
   getLatestIssue,
   getLibrary,
+  postSearch,
   putIssueRead,
   putSave,
 } from "./client";
-import type { Content, IssueDetail, LibraryFilters, Page } from "../types";
+import type {
+  Content,
+  IssueDetail,
+  LibraryFilters,
+  Page,
+  SearchFilters,
+} from "../types";
 
 export const queryKeys = {
   editions: ["editions"] as const,
@@ -30,6 +38,9 @@ export const queryKeys = {
   latestIssue: (edition?: string) => ["issue", "latest", { edition: edition ?? null }] as const,
   content: (id: string) => ["content", id] as const,
   library: (filters: LibraryFilters) => ["library", filters] as const,
+  search: (query: string, filters?: SearchFilters) =>
+    ["search", { query, filters: filters ?? null }] as const,
+  collections: ["collections"] as const,
 };
 
 /** GET /editions. */
@@ -102,6 +113,34 @@ export function useLibrary(filters: LibraryFilters, pageSize: number) {
       return next < lastPage.total ? next : undefined;
     },
   });
+}
+
+// ── unified hybrid search (#7) ──
+
+/**
+ * POST /search as an infinite query (#7). Keyed on the TRIMMED query + filters, so changing
+ * either starts a fresh paginated search. Enabled only when the query is non-empty (an empty box
+ * shows suggestions, not results). `getNextPageParam` advances by offset+limit and stops at total
+ * — mirroring useLibrary's infinite-scroll idiom. match_explanation rides along but is hidden.
+ */
+export function useSearch(query: string, filters: SearchFilters | undefined, pageSize: number) {
+  const trimmed = query.trim();
+  return useInfiniteQuery({
+    queryKey: queryKeys.search(trimmed, filters),
+    queryFn: ({ pageParam }) =>
+      postSearch({ query: trimmed, filters, limit: pageSize, offset: pageParam }),
+    initialPageParam: 0,
+    enabled: trimmed.length > 0,
+    getNextPageParam: (lastPage) => {
+      const next = lastPage.offset + lastPage.limit;
+      return next < lastPage.total ? next : undefined;
+    },
+  });
+}
+
+/** GET /collections — the seeded smart collections (suggestion chips that run their query). */
+export function useCollections() {
+  return useQuery({ queryKey: queryKeys.collections, queryFn: getCollections });
 }
 
 // ── writes (#5 / M2) ──

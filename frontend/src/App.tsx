@@ -8,10 +8,10 @@ import "./styles/recall.css";
 import { useCategories, useEditions } from "./api/queries";
 import { EditorialView } from "./components/EditorialView";
 import { LibraryView } from "./components/LibraryView";
-import { PlaceholderView } from "./components/PlaceholderView";
+import { SearchView } from "./components/SearchView";
 import { TopBar } from "./components/TopBar";
 import type { View } from "./components/TopBar";
-import type { LibraryFilters } from "./types";
+import type { LibraryFilters, SearchFilters } from "./types";
 import { useMobile } from "./useMobile";
 import { usePrefs } from "./usePrefs";
 
@@ -32,6 +32,19 @@ export default function App() {
   // Library filter state lives here (the prototype kept it in App context).
   const [filters, setFilters] = useState<LibraryFilters>(EMPTY_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
+
+  // Unified-search box state (#7). The Library filters double as the search filters (the same
+  // dimensions AND with the intent the backend detects from the query text).
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchFilters: SearchFilters = useMemo(
+    () => ({
+      types: filters.types,
+      editions: filters.editions,
+      categories: filters.categories,
+      starred: filters.starredOnly,
+    }),
+    [filters],
+  );
 
   const editionsQuery = useEditions();
   const editionsData = editionsQuery.data;
@@ -142,9 +155,11 @@ export default function App() {
           />
         )}
         {view === "search" && (
-          <PlaceholderView
-            title="Smart search"
-            note="Ask your library in plain English — semantic search lands in a later milestone."
+          <SearchView
+            query={searchQuery}
+            onSetQuery={setSearchQuery}
+            filters={searchFilters}
+            mob={mob}
           />
         )}
       </main>

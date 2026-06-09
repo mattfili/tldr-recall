@@ -9,9 +9,11 @@ processes — because the vector is derived purely from a stable hash of the tex
 per-instance or per-process state, no clock, no global RNG). The vector is L2-normalized so it
 behaves like a real cosine-space embedding.
 
-DISTINCT MODEL NAME: ``name = 'fake-1536'`` (NOT the real ``text-embedding-3-small``) so its
+DISTINCT MODEL NAME: ``name = f'fake-{dim}'`` (NOT the real ``text-embedding-3-small``) so its
 rows never collide with real rows under ``unique(content_id, kind, model)`` and are trivially
-deletable by ``model = 'fake-1536'``.
+deletable by ``model LIKE 'fake-%'``. At the default ``dim==1536`` this is ``'fake-1536'`` (the
+``FAKE_MODEL_NAME`` constant, kept for the #6 tests). The name is parameterised on ``dim`` so it
+EQUALS ``factory.active_model_name('fake')`` for ANY dim — the #7 degradation gate's invariant.
 
 NO model SDK import here — only stdlib. ``dim`` defaults to the configured embed dim (1536).
 """
@@ -31,8 +33,10 @@ class FakeEmbedder:
     """A deterministic, key-free Embedder (implements the base.Embedder Protocol)."""
 
     def __init__(self, *, dim: int | None = None) -> None:
-        self.name = FAKE_MODEL_NAME
         self.dim = dim if dim is not None else settings.recall_embed_dim
+        # name == active_model_name('fake') == f"fake-{dim}" (the #7 gating invariant). At the
+        # default dim==1536 this equals FAKE_MODEL_NAME ('fake-1536'), so the #6 tests still hold.
+        self.name = f"fake-{self.dim}"
 
     def _embed_one(self, text: str) -> list[float]:
         # Seed a PRNG from a stable 64-bit hash of the text -> identical sequence every time.
