@@ -175,16 +175,16 @@ def test_hybrid_search_runs_both_arms_via_fake_embedder(
 
 
 def test_dev_db_has_no_fake_rows_after_hybrid_run() -> None:
-    """The dev 'recall' DB must carry ZERO fake rows (the throwaway DB isolates them) and keep
-    its 44 real text-embedding-3-small rows untouched."""
+    """The dev DB must carry ZERO fake rows — the hybrid test isolates them in a throwaway DB.
+
+    We do NOT assert the real text-embedding-3-small row count: it is environment-dependent
+    (0 in CI / any keyless env, 44 after a local `recall embed-backfill --backend cloud`).
+    The load-bearing invariant is that the FakeEmbedder hybrid run leaked no fake-% rows here.
+    """
     from recall.db import engine as dev_engine
 
     with dev_engine.connect() as conn:
         fakes = conn.execute(
             text("SELECT count(*) FROM content_embeddings WHERE model LIKE 'fake-%'")
         ).scalar()
-        reals = conn.execute(
-            text("SELECT count(*) FROM content_embeddings WHERE model = 'text-embedding-3-small'")
-        ).scalar()
     assert fakes == 0
-    assert reals == 44
