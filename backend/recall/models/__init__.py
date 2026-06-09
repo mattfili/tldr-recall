@@ -26,6 +26,7 @@ from recall.models.ingest_run import IngestRun
 from recall.models.issue import Issue
 from recall.models.user import User
 from recall.models.user_content_state import UserContentState
+from recall.models.user_issue_state import UserIssueState
 
 __all__ = [
     "EMBED_DIM",
@@ -43,6 +44,7 @@ __all__ = [
     "ReadState",
     "User",
     "UserContentState",
+    "UserIssueState",
     "content_type_enum",
     "embedding_kind_enum",
     "read_state_enum",

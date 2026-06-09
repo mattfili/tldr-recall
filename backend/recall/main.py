@@ -2,7 +2,8 @@
 
 create_app() builds the app, wires CORS from config, and mounts the routers. The module-level
 ``app`` is what uvicorn serves (``recall.main:app``). #3 adds the read endpoints: editions,
-issues (list/latest/detail), and content.
+issues (list/latest/detail), and content. #5 (M2) adds the writes: saves (PUT/DELETE) and the
+client-fired PUT /issues/{id}/read (mounted on the issues router).
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from recall.api.editions import router as editions_router
 from recall.api.health import router as health_router
 from recall.api.issues import router as issues_router
 from recall.api.library import router as library_router
+from recall.api.saves import router as saves_router
 from recall.config import settings
 
 
@@ -36,6 +38,7 @@ def create_app() -> FastAPI:
     app.include_router(content_router)
     app.include_router(library_router)
     app.include_router(categories_router)
+    app.include_router(saves_router)
 
     return app
 

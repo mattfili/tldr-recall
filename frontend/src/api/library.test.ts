@@ -56,7 +56,6 @@ const SAMPLE_CONTENT: Content = {
     },
   ],
   starred: false,
-  read_state: "unread",
 };
 
 describe("getLibrary", () => {
@@ -114,7 +113,6 @@ describe("getLibrary", () => {
     expect(page.items[0].title).toContain("Nvidia");
     expect(page.items[0].appearances[0].edition.key).toBe("tldr");
     expect(page.items[0].starred).toBe(false);
-    expect(page.items[0].read_state).toBe("unread");
   });
 });
 

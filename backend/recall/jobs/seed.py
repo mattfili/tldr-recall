@@ -35,8 +35,9 @@ Seeding rules (locked by the CONTRACT — obey exactly):
   as the CONTRACT requires. See the SEEDING-RULE DEVIATION note in ``_content_hash``.
 * content_appearances: link content -> its edition's single issue; category_id<-resolve(cat);
   position<-the item's 0-based index among items of the SAME edition in data.js order.
-* user_content_state: create a row for the seeded STUB user IFF (starred OR
-  read_state=='read'); set starred / read_state from the item. Others -> NO row.
+* user_content_state: create a row for the seeded STUB user IFF the item is starred (ADR-0002
+  — Save/Star is the only Content-level per-reader fact); set starred from the item. Others ->
+  NO row. read/unread is per-ISSUE (user_issue_state), seeded EMPTY.
 * users: ONE stub user whose id EQUALS ``STUB_USER.id`` from ``recall.auth.stub``.
 * collections: from ``COLLECTIONS`` — slug<-id, label<-label, query<-q, hue<-v VERBATIM,
   is_smart=true, user_id=null. data.js ``count`` is IGNORED.
@@ -204,15 +205,12 @@ def seed_session(session: Session, data: dict[str, Any]) -> dict[str, int]:
             position=position,
         )
 
-        # user_content_state IFF starred OR read.
-        starred = bool(item.get("starred"))
-        read_state = item.get("read_state", "unread")
-        if starred or read_state == "read":
+        # user_content_state IFF starred (ADR-0002 — starred-only; read/unread is per-Issue).
+        if bool(item.get("starred")):
             state_repo.upsert(
                 user_id=stub_user_id,
                 content_id=content.id,
-                starred=starred,
-                read_state=read_state,
+                starred=True,
             )
 
     # ── 5. Collections (smart, global). slug<-id, label<-label, query<-q, hue<-v. ──

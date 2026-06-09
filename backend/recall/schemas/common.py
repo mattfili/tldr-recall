@@ -58,11 +58,12 @@ class Appearance(BaseModel):
 
 
 class Content(BaseModel):
-    """The canonical frontend object (spec §9, ADR-0001).
+    """The canonical frontend object (spec §9, ADR-0001, ADR-0002).
 
     Flat PRIMARY-APPEARANCE fields (``edition``/``category``/``issue``) + full provenance in
-    ``appearances[]`` + per-reader ``starred``/``read_state``. Primary appearance = earliest by
-    (issue.published_at, then position). On the seed each Content has exactly ONE appearance.
+    ``appearances[]`` + the per-reader ``starred`` (Save/Star) flag. Primary appearance =
+    earliest by (issue.published_at, then position). On the seed each Content has exactly ONE
+    appearance. Content has NO read state — read/unread is a per-(reader, ISSUE) fact (ADR-0002).
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -85,9 +86,8 @@ class Content(BaseModel):
     # full provenance
     appearances: list[Appearance]
 
-    # per-reader state (stub user)
+    # per-reader state (stub user) — Save/Star only (ADR-0002).
     starred: bool
-    read_state: str
 
 
 class Page[T](BaseModel):

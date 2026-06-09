@@ -62,7 +62,7 @@ def build_content(
 
     ``appearances`` must contain at least one row (every Content has at least one sighting).
     Primary appearance = earliest by (issue.published_at, position); we sort defensively so the
-    caller need not pre-sort. ``state`` None -> starred=False / read_state='unread'.
+    caller need not pre-sort. ``state`` None -> starred=False (read/unread is per-Issue, ADR-0002).
     """
     ordered = sorted(
         appearances,
@@ -85,7 +85,6 @@ def build_content(
         issue=_issue_ref(primary),
         appearances=[_appearance_schema(ap) for ap in ordered],
         starred=bool(state.starred) if state is not None else False,
-        read_state=str(state.read_state) if state is not None else "unread",
     )
 
 

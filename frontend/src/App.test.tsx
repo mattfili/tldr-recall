@@ -32,6 +32,7 @@ const TLDR_ISSUES: Page<IssueSummary> = {
       subject: "TLDR",
       subtitle: "Nvidia's AI PCs, Anthropic files to IPO, and search as code generation.",
       content_count: 20,
+      read_state: "unread",
     },
   ],
   total: 1,
@@ -71,7 +72,6 @@ const TLDR_DETAIL: IssueDetail = {
           },
           appearances: [],
           starred: false,
-          read_state: "unread",
         },
       ],
     },
@@ -110,7 +110,6 @@ const LIBRARY_PAGE: Page<Content> = {
         },
       ],
       starred: false,
-      read_state: "unread",
     },
   ],
   total: 44,
@@ -118,7 +117,16 @@ const LIBRARY_PAGE: Page<Content> = {
   offset: 0,
 };
 
-function routeFetch(url: string): unknown {
+function routeFetch(url: string, method: string): unknown {
+  // Writes (#5): mark-on-view + saves. EditorialView fires PUT /issues/{id}/read on mount.
+  if (url.includes("/read") && method === "PUT") {
+    const id = url.split("/issues/")[1]?.split("/")[0] ?? "";
+    return { issue_id: id, read_state: "read" };
+  }
+  if (url.includes("/saves/") && (method === "PUT" || method === "DELETE")) {
+    const id = url.split("/saves/")[1] ?? "";
+    return { content_id: id, starred: method === "PUT" };
+  }
   if (url.endsWith("/editions")) return EDITIONS;
   if (url.endsWith("/categories")) return CATEGORIES;
   if (url.includes("/library")) return LIBRARY_PAGE;
@@ -149,9 +157,12 @@ function renderApp() {
   vi.stubGlobal("IntersectionObserver", NoopIntersectionObserver);
   vi.stubGlobal(
     "fetch",
-    vi.fn((input: unknown) => {
+    vi.fn((input: unknown, init?: { method?: string }) => {
       const url = String(input);
-      return Promise.resolve(new Response(JSON.stringify(routeFetch(url)), { status: 200 }));
+      const method = init?.method ?? "GET";
+      return Promise.resolve(
+        new Response(JSON.stringify(routeFetch(url, method)), { status: 200 }),
+      );
     }),
   );
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });

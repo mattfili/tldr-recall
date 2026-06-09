@@ -1,7 +1,8 @@
-"""``user_content_state`` — per-reader bookmarking + read state, keyed on Content (§5.2).
+"""``user_content_state`` — per-reader Save/Star, keyed on Content (§5.2, ADR-0002).
 
-A row exists after the first star OR read. ``starred`` default false; read-state independent
-of saving.
+A row exists after the first star. It now carries ``starred`` ONLY — read/unread is a
+per-(reader, ISSUE) fact (see ``user_issue_state``, ADR-0002), never a Content property.
+``starred`` default false; a DELETE /saves soft-upserts ``starred=false`` (the row is kept).
 """
 
 from __future__ import annotations
@@ -14,7 +15,6 @@ from sqlalchemy import Boolean, ForeignKey, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from recall.models.base import Base, timestamptz, uuid_pk
-from recall.models.enums import ReadState, read_state_enum
 
 if TYPE_CHECKING:
     from recall.models.content import Content
@@ -33,9 +33,6 @@ class UserContentState(Base):
     content_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("content.id"), nullable=False)
     starred: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=text("false")
-    )
-    read_state: Mapped[ReadState] = mapped_column(
-        read_state_enum, nullable=False, server_default=text("'unread'")
     )
     updated_at: Mapped[datetime] = mapped_column(
         timestamptz(), nullable=False, server_default=text("now()")
