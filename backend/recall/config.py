@@ -7,12 +7,19 @@ spec §12.3 live here — the ``VITE_*`` keys are frontend-only and are intentio
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Resolve the REPO-ROOT .env regardless of CWD. This file is backend/recall/config.py, so
+# parents[2] is the repo root (the dir that holds .env). Every field keeps a default, so a
+# missing .env (e.g. in CI) still loads cleanly.
+_ENV_FILE = str(Path(__file__).resolve().parents[2] / ".env")
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_ENV_FILE,
         extra="ignore",
         case_sensitive=False,
     )

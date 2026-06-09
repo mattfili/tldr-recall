@@ -77,6 +77,15 @@ class ContentRepository(Repository):
     def count(self) -> int:
         return self.session.scalar(select(func.count()).select_from(Content)) or 0
 
+    def list_all(self) -> list[Content]:
+        """Every Content row, ordered deterministically (id ASC) — the backfill corpus walk.
+
+        Returns full ORM rows; the embed backfill reads id + content_type + title + summary +
+        domain + tags off each. No filtering: the idempotency skip happens in the job via the
+        existing-ids set (see ``EmbeddingRepository.existing_content_ids``).
+        """
+        return list(self.session.scalars(select(Content).order_by(Content.id.asc())).all())
+
     # ── library (#4) ──
 
     def list_library(
