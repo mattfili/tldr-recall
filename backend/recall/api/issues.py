@@ -27,15 +27,16 @@ from recall.repositories import (
     AppearanceRepository,
     IssueRepository,
     UserContentStateRepository,
+    UserIssueStateRepository,
 )
-from recall.schemas import IssueDetail, IssueSummary, Page
+from recall.schemas import IssueDetail, IssueReadState, IssueSummary, Page
 from recall.schemas.common import CategoryRef, EditionRef
 from recall.schemas.issue import IssueMeta, IssueSection
 
 router = APIRouter(tags=["issues"])
 
 
-def _summary(issue: Issue, content_count: int) -> IssueSummary:
+def _summary(issue: Issue, content_count: int, read_state: str) -> IssueSummary:
     return IssueSummary(
         id=issue.id,
         edition=EditionRef(key=issue.edition.key, name=issue.edition.name),
@@ -44,6 +45,7 @@ def _summary(issue: Issue, content_count: int) -> IssueSummary:
         subject=issue.subject,
         subtitle=issue.subtitle,
         content_count=content_count,
+        read_state=read_state,
     )
 
 
@@ -103,14 +105,25 @@ def _build_issue_detail(db: Session, issue: Issue, user_id: uuid.UUID) -> IssueD
 @router.get("/issues", response_model=Page[IssueSummary])
 def list_issues(
     db: Db,
+    user_id: CurrentUserId,
     edition: Annotated[str | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> Page[IssueSummary]:
     repo = IssueRepository(db)
     issues, total = repo.list_summaries(edition_key=edition, limit=limit, offset=offset)
-    counts = repo.content_counts([i.id for i in issues])
-    items = [_summary(i, counts.get(i.id, 0)) for i in issues]
+    issue_ids = [i.id for i in issues]
+    counts = repo.content_counts(issue_ids)
+    # Batch-load per-Issue read state (no N+1, like content_counts). Missing -> 'unread'.
+    states = UserIssueStateRepository(db).get_many(user_id=user_id, issue_ids=issue_ids)
+    items = [
+        _summary(
+            i,
+            counts.get(i.id, 0),
+            str(states[i.id].read_state) if i.id in states else "unread",
+        )
+        for i in issues
+    ]
     return Page[IssueSummary](items=items, total=total, limit=limit, offset=offset)
 
 
@@ -132,3 +145,22 @@ def get_issue(issue_id: uuid.UUID, db: Db, user_id: CurrentUserId) -> IssueDetai
     if issue is None:
         raise HTTPException(status_code=404, detail="Issue not found")
     return _build_issue_detail(db, issue, user_id)
+
+
+@router.put("/issues/{issue_id}/read", response_model=IssueReadState)
+def mark_issue_read(
+    issue_id: uuid.UUID, db: Db, user_id: CurrentUserId
+) -> IssueReadState:
+    """Mark an issue read for the stub reader (ADR-0002).
+
+    CLIENT-FIRED on view (the GET endpoints stay side-effect free). Idempotent: re-marking a
+    read issue stays read. ``get_db()`` doesn't commit and the repo only flushes, so we commit
+    explicitly here.
+    """
+    if IssueRepository(db).get(issue_id) is None:
+        raise HTTPException(status_code=404, detail="Issue not found")
+    UserIssueStateRepository(db).upsert(
+        user_id=user_id, issue_id=issue_id, read_state="read"
+    )
+    db.commit()
+    return IssueReadState(issue_id=issue_id, read_state="read")

@@ -1,13 +1,15 @@
 // ContentItem — one article row in the Editorial view.
 // Ported from tldr-web/prototype.jsx ArticleItem + Actions.
 //
-// #3 scope notes:
-//  - Article links open in a NEW TAB via platform.openExternal (in-app browser is #5).
-//  - Star RENDERS API state (content.starred) but is non-functional; wiring is #5.
+// Scope notes:
+//  - Article links open in a NEW TAB via platform.openExternal.
+//  - Star is wired to useToggleSave (#5): the optimistic cache flip updates it.starred
+//    immediately, so the fill toggles with no local component state.
 //  - read-time / SrcBadge: articles & papers show "(N min read)"; other source
 //    types show "(<source label>)" (matches the prototype's SRC_NAME copy).
 
 import { useState } from "react";
+import { useToggleSave } from "../api/queries";
 import { platform } from "../platform";
 import type { Content } from "../types";
 import { FaviconChip, Ico, ResourcePill, Star } from "./atoms";
@@ -26,12 +28,17 @@ function metaLabel(c: Content): string {
   return `(${SRC_NAME[c.content_type] ?? c.content_type})`;
 }
 
-// star + share action cluster (Star is non-functional in #3 — renders state only)
+// star + share action cluster. The Star toggles the Save via useToggleSave (#5).
 function Actions({ it, size = 19 }: { it: Content; size?: number }) {
   const [shareOpen, setShareOpen] = useState(false);
+  const toggle = useToggleSave();
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 4, position: "relative" }}>
-      <Star on={it.starred} size={size} />
+      <Star
+        on={it.starred}
+        size={size}
+        onClick={() => toggle.mutate({ id: it.id, next: !it.starred })}
+      />
       <div style={{ position: "relative" }}>
         <button
           onClick={() => setShareOpen((o) => !o)}

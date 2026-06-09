@@ -8,8 +8,10 @@ import type {
   Edition,
   Health,
   IssueDetail,
+  IssueReadState,
   IssueSummary,
   Page,
+  SaveState,
 } from "../types";
 
 export const API_BASE_URL: string =
@@ -37,6 +39,22 @@ async function getJson<T>(path: string): Promise<T> {
   }
   if (!res.ok) {
     throw new ApiError(`GET ${path} failed: ${res.status} ${res.statusText}`, res.status);
+  }
+  return (await res.json()) as T;
+}
+
+/** Mutating request (PUT/DELETE) with no body. Mirrors getJson's error handling. */
+async function sendJson<T>(method: "PUT" | "DELETE", path: string): Promise<T> {
+  const url = `${API_BASE_URL}${path}`;
+  let res: Response;
+  try {
+    res = await fetch(url, { method });
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : String(cause);
+    throw new ApiError(`Network error reaching ${url}: ${message}`, 0);
+  }
+  if (!res.ok) {
+    throw new ApiError(`${method} ${path} failed: ${res.status} ${res.statusText}`, res.status);
   }
   return (await res.json()) as T;
 }
@@ -120,4 +138,25 @@ export function getLibrary(
 /** GET /categories -> [{slug, label, hue}] ordered by sort (CAT_ORDER). */
 export function getCategories(): Promise<CategoryRef[]> {
   return getJson<CategoryRef[]>("/categories");
+}
+
+/** PUT /saves/{id} -> SaveState. Upserts starred=true for the stub reader (ADR-0002). */
+export function putSave(id: string): Promise<SaveState> {
+  return sendJson<SaveState>("PUT", `/saves/${id}`);
+}
+
+/**
+ * DELETE /saves/{id} -> SaveState. SOFT upsert starred=false (the row is kept, never deleted).
+ * Both putSave/deleteSave return the FULL SaveState so the optimistic flip can reconcile.
+ */
+export function deleteSave(id: string): Promise<SaveState> {
+  return sendJson<SaveState>("DELETE", `/saves/${id}`);
+}
+
+/**
+ * PUT /issues/{id}/read -> IssueReadState. Marks an issue read for the stub reader
+ * (ADR-0002 mark-on-view; client-fired when the issue is displayed). Idempotent.
+ */
+export function putIssueRead(id: string): Promise<IssueReadState> {
+  return sendJson<IssueReadState>("PUT", `/issues/${id}/read`);
 }

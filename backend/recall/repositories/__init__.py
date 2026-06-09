@@ -15,6 +15,7 @@ from recall.repositories.editions import EditionRepository
 from recall.repositories.embeddings import EmbeddingRepository
 from recall.repositories.issues import IssueRepository
 from recall.repositories.user_content_state import UserContentStateRepository
+from recall.repositories.user_issue_state import UserIssueStateRepository
 from recall.repositories.users import UserRepository
 
 __all__ = [
@@ -26,5 +27,6 @@ __all__ = [
     "EmbeddingRepository",
     "IssueRepository",
     "UserContentStateRepository",
+    "UserIssueStateRepository",
     "UserRepository",
 ]

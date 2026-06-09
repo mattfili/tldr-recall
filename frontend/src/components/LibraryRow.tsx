@@ -7,25 +7,32 @@
 //  - it.read       -> it.read_minutes
 //  - it.ed (ED map)-> it.edition.name   (the PRIMARY appearance's edition per ADR-0001;
 //                                         no ED lookup — Content already carries it flat)
-//  - it.read_state -> it.read_state     (title font-weight only; PRESENTATION, not a filter)
 //
+// Titles render with ONE consistent style — Content has NO read state (ADR-0002), so there is
+// no unread-driven font-weight/color.
 // Links open via platform.openExternal (matches ContentItem; the prototype used a raw href).
-// Star RENDERS it.starred and is non-functional (writes are #5), like ContentItem.
+// Star is wired to useToggleSave (#5): the optimistic cache flip updates it.starred instantly.
 // On mobile the right-side Edition/Length meta collapses (hide Edition, keep Length) so the
 // fixed-width columns don't overflow — gated by the `mob` prop (recall.css is never edited).
 
 import { useState } from "react";
+import { useToggleSave } from "../api/queries";
 import { platform } from "../platform";
 import type { Content } from "../types";
 import { Ico, ResourcePill, SrcIcon, Star } from "./atoms";
 import { SharePop } from "./SharePop";
 
-// star + share action cluster, mirroring ContentItem's read-only Actions (writes are #5).
+// star + share action cluster. The Star toggles the Save via useToggleSave (#5).
 function RowActions({ it, size = 17 }: { it: Content; size?: number }) {
   const [shareOpen, setShareOpen] = useState(false);
+  const toggle = useToggleSave();
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 4, position: "relative" }}>
-      <Star on={it.starred} size={size} />
+      <Star
+        on={it.starred}
+        size={size}
+        onClick={() => toggle.mutate({ id: it.id, next: !it.starred })}
+      />
       <div style={{ position: "relative" }}>
         <button
           onClick={() => setShareOpen((o) => !o)}
@@ -60,8 +67,8 @@ export function LibraryRow({
   expanded: boolean;
   mob?: boolean;
 }) {
-  const unread = it.read_state === "unread";
   const lengthLabel = it.read_minutes ? `${it.read_minutes} min` : it.content_type;
+  const toggle = useToggleSave();
 
   const openArticle = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -80,7 +87,11 @@ export function LibraryRow({
       }}
     >
       <div style={{ paddingTop: expanded ? 2 : 0 }}>
-        <Star on={it.starred} size={16} />
+        <Star
+          on={it.starred}
+          size={16}
+          onClick={() => toggle.mutate({ id: it.id, next: !it.starred })}
+        />
       </div>
       <span style={{ color: "var(--ink-4)", flex: "none", paddingTop: expanded ? 3 : 0 }}>
         <SrcIcon kind={it.content_type} s={15} />
@@ -92,8 +103,8 @@ export function LibraryRow({
             onClick={openArticle}
             style={{
               fontSize: expanded ? 16.5 : 14,
-              fontWeight: unread ? 600 : 500,
-              color: unread ? "var(--ink)" : "var(--ink-2)",
+              fontWeight: 500,
+              color: "var(--ink)",
               textDecoration: "none",
               letterSpacing: "-0.01em",
               whiteSpace: expanded ? "normal" : "nowrap",

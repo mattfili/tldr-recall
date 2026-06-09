@@ -40,7 +40,7 @@ FIXTURE_PATH = BACKEND_DIR / "tests" / "fixtures" / "recall_seed.json"
 
 TEST_DB_NAME = "recall_test"
 
-# Every table the §5.2 schema must create.
+# Every table the schema must create (§5.2 + the M2 user_issue_state, ADR-0002).
 EXPECTED_TABLES = {
     "editions",
     "issues",
@@ -50,6 +50,7 @@ EXPECTED_TABLES = {
     "content_embeddings",
     "users",
     "user_content_state",
+    "user_issue_state",
     "collections",
     "ingest_runs",
 }
@@ -217,9 +218,8 @@ def test_row_counts_match_fixture(seeded_engine: Engine, fixture_data: dict) -> 
     expected_categories = len(fixture_data["CATS"])
     expected_issues = len(fixture_data["ED_META"])
     expected_collections = len(fixture_data["COLLECTIONS"])
-    expected_state = sum(
-        1 for it in items if it.get("starred") or it.get("read_state") == "read"
-    )
+    # user_content_state is STARRED-ONLY (ADR-0002); read/unread is per-Issue now.
+    expected_state = sum(1 for it in items if it.get("starred"))
 
     with seeded_engine.connect() as conn:
         assert _count(conn, "content") == expected_content
@@ -229,6 +229,8 @@ def test_row_counts_match_fixture(seeded_engine: Engine, fixture_data: dict) -> 
         assert _count(conn, "issues") == expected_issues
         assert _count(conn, "collections") == expected_collections
         assert _count(conn, "user_content_state") == expected_state
+        # user_issue_state is seeded EMPTY (mark-on-view is client-fired at runtime).
+        assert _count(conn, "user_issue_state") == 0
         # embeddings intentionally empty (land in #6).
         assert _count(conn, "content_embeddings") == 0
         # exactly one stub user.

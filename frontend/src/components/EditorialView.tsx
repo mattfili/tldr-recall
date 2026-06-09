@@ -9,12 +9,29 @@
 // GET /issues/{id}. On first paint the latest issue (index 0) renders.
 
 import { useEffect, useMemo, useState } from "react";
-import { useIssue, useIssues } from "../api/queries";
+import { useIssue, useIssues, useMarkIssueRead } from "../api/queries";
 import { formatMastheadDate } from "../format";
 import type { Edition } from "../types";
 import { ContentItem } from "./ContentItem";
 import { IssueNav } from "./IssueNav";
 import { SectionHead } from "./SectionHead";
+
+// Best-effort catch-up unread marker (ADR-0002). Inline-styled so recall.css stays untouched.
+function UnreadDot({ size = 8 }: { size?: number }) {
+  return (
+    <span
+      aria-label="unread"
+      style={{
+        display: "inline-block",
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        background: "var(--accent)",
+        flex: "none",
+      }}
+    />
+  );
+}
 
 // Rail order matches shot.png: TLDR, TLDR Founders, TLDR AI.
 const RAIL_ORDER = ["tldr", "founders", "ai"];
@@ -56,6 +73,21 @@ export function EditorialView({
   const detailQuery = useIssue(currentSummary?.id ?? null);
   const detail = detailQuery.data;
 
+  // Mark-on-view (ADR-0002): fire PUT /issues/{id}/read when an issue is DISPLAYED. The
+  // mutation invalidates the issues query so the unread markers refresh. Idempotent, so the
+  // StrictMode double-invoke in dev is harmless.
+  const markRead = useMarkIssueRead();
+  useEffect(() => {
+    if (currentSummary?.id) markRead.mutate(currentSummary.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSummary?.id]);
+
+  // Best-effort unread markers. The current issue's summary read_state drives the issue-nav
+  // dot; the rail dot is best-effort from THIS edition's loaded issues (issues for other
+  // editions are not loaded until selected).
+  const currentUnread = currentSummary?.read_state === "unread";
+  const editionHasUnread = issues.some((i) => i.read_state === "unread");
+
   // IssueNav semantics: "next" = newer (toward index 0), "prev" = older.
   const canNewer = safeIdx > 0;
   const canOlder = issues.length > 0 && safeIdx < issues.length - 1;
@@ -88,6 +120,8 @@ export function EditorialView({
           >
             {railEditions.map((e) => {
               const on = edition === e.key;
+              // Best-effort: rail dot only known for the currently-loaded (selected) edition.
+              const showDot = on && editionHasUnread;
               return (
                 <button
                   key={e.key}
@@ -99,9 +133,13 @@ export function EditorialView({
                     fontWeight: on ? 700 : 600,
                     letterSpacing: "-0.01em",
                     flex: "none",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
                   }}
                 >
                   {e.name}
+                  {showDot && <UnreadDot size={7} />}
                 </button>
               );
             })}
@@ -121,6 +159,8 @@ export function EditorialView({
           >
             {railEditions.map((e) => {
               const on = edition === e.key;
+              // Best-effort: rail dot only known for the currently-loaded (selected) edition.
+              const showDot = on && editionHasUnread;
               return (
                 <button
                   key={e.key}
@@ -151,9 +191,13 @@ export function EditorialView({
                       fontWeight: on ? 700 : 600,
                       letterSpacing: "-0.02em",
                       color: on ? "var(--accent)" : "inherit",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 7,
                     }}
                   >
                     {e.name}
+                    {showDot && <UnreadDot size={7} />}
                   </span>
                 </button>
               );
@@ -187,17 +231,20 @@ export function EditorialView({
                   {formatMastheadDate(detail.issue.published_at).toUpperCase()}
                   {detail.issue.issue_number ? ` · ISSUE ${detail.issue.issue_number}` : ""}
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
-                  <IssueNav
-                    dir="prev"
-                    disabled={!canOlder}
-                    onClick={() => setIssueIdx((i) => i + 1)}
-                  />
-                  <IssueNav
-                    dir="next"
-                    disabled={!canNewer}
-                    onClick={() => setIssueIdx((i) => Math.max(0, i - 1))}
-                  />
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  {currentUnread && <UnreadDot size={8} />}
+                  <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                    <IssueNav
+                      dir="prev"
+                      disabled={!canOlder}
+                      onClick={() => setIssueIdx((i) => i + 1)}
+                    />
+                    <IssueNav
+                      dir="next"
+                      disabled={!canNewer}
+                      onClick={() => setIssueIdx((i) => Math.max(0, i - 1))}
+                    />
+                  </div>
                 </div>
               </div>
               <h1

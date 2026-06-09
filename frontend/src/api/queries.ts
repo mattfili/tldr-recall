@@ -1,8 +1,15 @@
 // TanStack Query hooks over the typed API client. This sets up the data layer
 // that #4 (Library) and #5 (writes) build on. Queries are read-only in #3.
 
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import {
+  type InfiniteData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import {
+  deleteSave,
   getCategories,
   getContent,
   getEditions,
@@ -10,8 +17,10 @@ import {
   getIssues,
   getLatestIssue,
   getLibrary,
+  putIssueRead,
+  putSave,
 } from "./client";
-import type { LibraryFilters } from "../types";
+import type { Content, IssueDetail, LibraryFilters, Page } from "../types";
 
 export const queryKeys = {
   editions: ["editions"] as const,
@@ -91,6 +100,116 @@ export function useLibrary(filters: LibraryFilters, pageSize: number) {
     getNextPageParam: (lastPage) => {
       const next = lastPage.offset + lastPage.limit;
       return next < lastPage.total ? next : undefined;
+    },
+  });
+}
+
+// ── writes (#5 / M2) ──
+
+/** Flip `starred` on a single Content (by id) within any cached shape (no-op for others). */
+function flipStarred(content: Content, id: string, next: boolean): Content {
+  return content.id === id ? { ...content, starred: next } : content;
+}
+
+/** Map the flip across one cached library InfiniteData page set. */
+function flipLibraryData(
+  data: InfiniteData<Page<Content>> | undefined,
+  id: string,
+  next: boolean,
+): InfiniteData<Page<Content>> | undefined {
+  if (!data) return data;
+  return {
+    ...data,
+    pages: data.pages.map((page) => ({
+      ...page,
+      items: page.items.map((it) => flipStarred(it, id, next)),
+    })),
+  };
+}
+
+/** Map the flip across one cached IssueDetail (issue/latest). */
+function flipIssueDetail(
+  data: IssueDetail | undefined,
+  id: string,
+  next: boolean,
+): IssueDetail | undefined {
+  if (!data) return data;
+  return {
+    ...data,
+    sections: data.sections.map((section) => ({
+      ...section,
+      content: section.content.map((it) => flipStarred(it, id, next)),
+    })),
+  };
+}
+
+/**
+ * useToggleSave — the OPTIMISTIC Save/Star mutation (#5 core mechanism).
+ *
+ * mutationFn({id, next}) calls PUT /saves (star) or DELETE /saves (soft unstar), each
+ * returning the full SaveState. onMutate cancels in-flight queries, snapshots every cache
+ * that carries a Content, and flips `starred` for the id across ALL of them — library
+ * InfiniteData (every filter variant, matched by the ["library"] prefix), issue/latest
+ * IssueDetail, and the single content(id). onError restores the snapshots; onSettled
+ * invalidates so the authoritative membership (incl. the "Starred only" filter) re-fetches.
+ */
+export function useToggleSave() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, next }: { id: string; next: boolean }) =>
+      next ? putSave(id) : deleteSave(id),
+    onMutate: async ({ id, next }: { id: string; next: boolean }) => {
+      await Promise.all([
+        qc.cancelQueries({ queryKey: ["library"] }),
+        qc.cancelQueries({ queryKey: ["issue"] }),
+        qc.cancelQueries({ queryKey: queryKeys.content(id) }),
+      ]);
+
+      // Snapshot every affected cache for rollback.
+      const libraries = qc.getQueriesData<InfiniteData<Page<Content>>>({
+        queryKey: ["library"],
+      });
+      const issues = qc.getQueriesData<IssueDetail>({ queryKey: ["issue"] });
+      const content = qc.getQueryData<Content>(queryKeys.content(id));
+
+      // Apply the optimistic flip.
+      qc.setQueriesData<InfiniteData<Page<Content>>>({ queryKey: ["library"] }, (data) =>
+        flipLibraryData(data, id, next),
+      );
+      qc.setQueriesData<IssueDetail>({ queryKey: ["issue"] }, (data) =>
+        flipIssueDetail(data, id, next),
+      );
+      if (content) {
+        qc.setQueryData<Content>(queryKeys.content(id), flipStarred(content, id, next));
+      }
+
+      return { libraries, issues, content, id };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (!ctx) return;
+      for (const [key, data] of ctx.libraries) qc.setQueryData(key, data);
+      for (const [key, data] of ctx.issues) qc.setQueryData(key, data);
+      qc.setQueryData(queryKeys.content(ctx.id), ctx.content);
+    },
+    onSettled: (_data, _err, { id }) => {
+      qc.invalidateQueries({ queryKey: ["library"] });
+      qc.invalidateQueries({ queryKey: ["issue"] });
+      qc.invalidateQueries({ queryKey: queryKeys.content(id) });
+    },
+  });
+}
+
+/**
+ * useMarkIssueRead — fire on issue view (mark-on-view, ADR-0002). PUT /issues/{id}/read is
+ * idempotent; on settle we invalidate the issues query so IssueSummary.read_state + the nav
+ * unread markers refresh.
+ */
+export function useMarkIssueRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => putIssueRead(id),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["issues"] });
     },
   });
 }

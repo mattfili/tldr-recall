@@ -2,7 +2,8 @@
 
 Provides the request-scoped DB session and resolves the current reader's user id. Auth is the
 stub provider (spec §11): a single fixed user whose id matches the seeded ``users`` row, so
-``starred``/``read_state`` resolve against real ``user_content_state`` rows.
+``starred`` resolves against real ``user_content_state`` rows and per-Issue ``read_state``
+against ``user_issue_state`` (ADR-0002).
 
 Dependencies are exported as ``Annotated`` aliases (``Db`` / ``CurrentUserId``) so routes declare
 ``db: Db`` rather than ``db = Depends(...)`` — this keeps the ``Depends()`` call out of argument

@@ -1,7 +1,8 @@
 """Content endpoint (spec §9, ADR-0001).
 
 ``GET /content/{id}`` -> the canonical ``Content`` object: flat primary-appearance fields +
-full ``appearances[]`` + the reader's ``starred``/``read_state``.
+full ``appearances[]`` + the reader's ``starred`` (Save/Star; Content has no read state per
+ADR-0002).
 """
 
 from __future__ import annotations

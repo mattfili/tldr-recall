@@ -11,8 +11,8 @@ What is asserted:
   ('Big Tech & Startups') and whose first bigtech item starts with 'Nvidia Introduces First PCs',
   with section ordering following CAT_ORDER.
 * ``Content`` has the EXACT key set incl. ``appearances[]`` (length 1 on the seed) +
-  ``starred``/``read_state``; a known starred+read item (anthropic-ipo) reports
-  starred=true/read_state='read' and a plain item reports false/'unread'.
+  ``starred`` (Save/Star ONLY — Content has no read state per ADR-0002); a known starred item
+  (anthropic-ipo) reports starred=true and a plain item reports starred=false.
 * ``GET /content/{id}`` round-trips the same shape.
 """
 
@@ -49,7 +49,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-# The exact top-level key set of a Content response (spec §9 / ADR-0001 contract).
+# The exact top-level key set of a Content response (spec §9 / ADR-0001/0002 contract).
 CONTENT_KEYS = {
     "id",
     "title",
@@ -65,7 +65,6 @@ CONTENT_KEYS = {
     "issue",
     "appearances",
     "starred",
-    "read_state",
 }
 
 
@@ -96,7 +95,7 @@ def test_issues_pagination_envelope() -> None:
     assert body["total"] >= 3
     assert body["limit"] == 20
     assert body["offset"] == 0
-    # IssueSummary shape.
+    # IssueSummary shape (now carries per-reader read_state, ADR-0002).
     item = body["items"][0]
     assert set(item.keys()) == {
         "id",
@@ -106,9 +105,11 @@ def test_issues_pagination_envelope() -> None:
         "subject",
         "subtitle",
         "content_count",
+        "read_state",
     }
     assert set(item["edition"].keys()) == {"key", "name"}
     assert item["content_count"] >= 1
+    assert item["read_state"] in {"unread", "read"}
 
 
 def test_issues_newest_first() -> None:
@@ -212,17 +213,15 @@ def test_content_has_exact_keys_and_single_appearance() -> None:
     assert content["issue"]["id"] == appearance["issue"]["id"]
 
 
-def test_starred_read_item_reports_true_read() -> None:
+def test_starred_item_reports_true() -> None:
     content = _find_in_latest_tldr("Anthropic Files to Go Public")
     assert content["starred"] is True
-    assert content["read_state"] == "read"
 
 
-def test_plain_item_reports_false_unread() -> None:
-    # Nvidia PCs item is neither starred nor read in the seed.
+def test_plain_item_reports_false() -> None:
+    # Nvidia PCs item is not starred in the seed.
     content = _find_in_latest_tldr("Nvidia Introduces First PCs")
     assert content["starred"] is False
-    assert content["read_state"] == "unread"
 
 
 def test_get_content_by_id_round_trips() -> None:
@@ -231,7 +230,6 @@ def test_get_content_by_id_round_trips() -> None:
     assert set(fetched.keys()) == CONTENT_KEYS
     assert fetched["id"] == listed["id"]
     assert fetched["starred"] is True
-    assert fetched["read_state"] == "read"
     assert len(fetched["appearances"]) == 1
 
 

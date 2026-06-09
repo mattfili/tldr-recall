@@ -77,6 +77,7 @@ describe("getIssues", () => {
           subject: "TLDR",
           subtitle: "Nvidia's AI PCs, Anthropic files to IPO, and search as code generation.",
           content_count: 20,
+          read_state: "unread",
         },
       ],
       total: 1,
@@ -139,7 +140,6 @@ const LATEST_TLDR: IssueDetail = {
             },
           ],
           starred: false,
-          read_state: "unread",
         },
       ],
     },
@@ -198,7 +198,6 @@ describe("getContent", () => {
       },
       appearances: [],
       starred: true,
-      read_state: "unread",
     };
     const fetchFn = mockJson(payload);
     const content = await getContent("8a2bfeee-a7ab-4d4f-88a0-05eb793aa7e6");

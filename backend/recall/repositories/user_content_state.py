@@ -1,7 +1,7 @@
-"""UserContentState repository — per-reader star + read state (§5.2).
+"""UserContentState repository — per-reader Save/Star (§5.2, ADR-0002).
 
-A row exists after the first star OR read; seed only creates rows for items that are
-starred or read.
+A row exists after the first star; the seed only creates rows for items that are starred.
+This table carries ``starred`` ONLY (read/unread is per-Issue — see ``user_issue_state``).
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ import uuid
 
 from sqlalchemy import func, select
 
-from recall.models import ReadState, UserContentState
+from recall.models import UserContentState
 from recall.repositories.base import Repository
 
 
@@ -31,7 +31,7 @@ class UserContentStateRepository(Repository):
         """The user's state rows for a set of content ids, keyed by ``content_id``.
 
         Content with no row is simply absent from the dict — the caller defaults it to
-        ``starred=False`` / ``read_state='unread'`` (a missing row means neither star nor read).
+        ``starred=False`` (a missing row means the reader has never starred it).
         """
         if not content_ids:
             return {}
@@ -49,21 +49,18 @@ class UserContentStateRepository(Repository):
         user_id: uuid.UUID,
         content_id: uuid.UUID,
         starred: bool,
-        read_state: ReadState | str,
     ) -> UserContentState:
-        """Idempotent on (user_id, content_id)."""
+        """Idempotent on (user_id, content_id). Starred-only; a soft un-star keeps the row."""
         state = self.get(user_id=user_id, content_id=content_id)
         if state is None:
             state = UserContentState(
                 user_id=user_id,
                 content_id=content_id,
                 starred=starred,
-                read_state=ReadState(read_state),
             )
             self.session.add(state)
         else:
             state.starred = starred
-            state.read_state = ReadState(read_state)
         self.session.flush()
         return state
 

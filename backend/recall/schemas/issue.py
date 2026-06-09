@@ -18,7 +18,12 @@ from recall.schemas.common import CategoryRef, Content, EditionRef
 
 
 class IssueSummary(BaseModel):
-    """One issue in the paginated ``GET /issues`` list."""
+    """One issue in the paginated ``GET /issues`` list.
+
+    ``read_state`` is the stub reader's per-(reader, ISSUE) read/unread state (ADR-0002),
+    defaulting to ``'unread'`` when the reader has never viewed this issue. It drives the
+    catch-up unread markers on the edition rail + issue nav.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -29,6 +34,7 @@ class IssueSummary(BaseModel):
     subject: str | None
     subtitle: str | None
     content_count: int
+    read_state: str
 
 
 class IssueMeta(BaseModel):
@@ -58,4 +64,20 @@ class IssueDetail(BaseModel):
     sections: list[IssueSection]
 
 
-__all__ = ["IssueDetail", "IssueMeta", "IssueSection", "IssueSummary"]
+class IssueReadState(BaseModel):
+    """``{issue_id, read_state}`` — the reader's per-Issue read state (ADR-0002).
+
+    Returned by ``PUT /issues/{issue_id}/read``; the shape the frontend reconciles against.
+    """
+
+    issue_id: UUID
+    read_state: str
+
+
+__all__ = [
+    "IssueDetail",
+    "IssueMeta",
+    "IssueReadState",
+    "IssueSection",
+    "IssueSummary",
+]
