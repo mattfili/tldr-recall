@@ -12,6 +12,7 @@ dependencies = [
     "psycopg[binary]",
     "pgvector",
     "alembic",
+    "openai>=1",
 ]
 
 [dependency-groups]
