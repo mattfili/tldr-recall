@@ -247,3 +247,164 @@ def test_get_issue_by_id_matches_latest() -> None:
     assert [s["category"]["slug"] for s in by_id["sections"]] == [
         s["category"]["slug"] for s in latest["sections"]
     ]
+
+
+# ─────────────────────────── /library (#4) ───────────────────────────
+
+
+def _all_library(**params: object) -> list[dict]:
+    """Fetch every Library item for the given filters by paging to exhaustion (limit=100)."""
+    items: list[dict] = []
+    offset = 0
+    while True:
+        qs = {**params, "limit": 100, "offset": offset}
+        body = client.get("/library", params=qs).json()
+        items.extend(body["items"])
+        offset += body["limit"]
+        if offset >= body["total"] or not body["items"]:
+            return items
+
+
+def test_library_default_envelope() -> None:
+    resp = client.get("/library")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert set(body.keys()) == {"items", "total", "limit", "offset"}
+    assert body["limit"] == 20
+    assert body["offset"] == 0
+    # Unfiltered, total is the SINGLE in-view count == whole-corpus Content size.
+    assert body["total"] >= 1
+    assert body["total"] == 44
+    # Each item is the full Content contract incl. appearances[] + per-reader state.
+    for item in body["items"]:
+        assert set(item.keys()) == CONTENT_KEYS
+        assert len(item["appearances"]) >= 1
+
+
+def test_library_ordering_first_seen_desc_then_id_asc() -> None:
+    # Primary-appearance order: first_seen_at == primary appearance published_at (ADR-0001),
+    # so item['issue']['published_at'] is non-increasing; id ASC breaks ties.
+    items = _all_library()
+    keyed = [(i["issue"]["published_at"], i["id"]) for i in items]
+    for (date_a, id_a), (date_b, id_b) in zip(keyed, keyed[1:], strict=False):
+        assert date_a >= date_b, "published_at must be non-increasing (first_seen_at DESC)"
+        if date_a == date_b:
+            assert id_a < id_b, "ids must ascend within an equal first_seen_at (id ASC tiebreak)"
+
+
+def test_library_pagination_distinct_pages_stable_total() -> None:
+    page1 = client.get("/library?limit=1&offset=0").json()
+    page2 = client.get("/library?limit=1&offset=1").json()
+    assert page1["limit"] == 1 and page1["offset"] == 0
+    assert len(page1["items"]) == 1
+    assert len(page2["items"]) == 1
+    assert page1["items"][0]["id"] != page2["items"][0]["id"]
+    assert page1["total"] == page2["total"]
+
+
+def test_library_no_overlap_across_pages() -> None:
+    half = client.get("/library?limit=5&offset=0").json()["items"]
+    rest = client.get("/library?limit=5&offset=5").json()["items"]
+    ids_a = {i["id"] for i in half}
+    ids_b = {i["id"] for i in rest}
+    assert ids_a.isdisjoint(ids_b), "consecutive pages must not overlap"
+
+
+def test_library_type_filter_single_value() -> None:
+    body = client.get("/library?type=repo&limit=100").json()
+    assert all(i["content_type"] == "repo" for i in body["items"])
+    # total reflects the filtered match count (Content-level content_type == 'repo').
+    assert body["total"] == len(body["items"])
+    assert body["total"] == 6
+
+
+def test_library_type_filter_multi_value_is_or_within() -> None:
+    # OR within the type dimension: article ∪ repo.
+    body = client.get("/library?type=article&type=repo&limit=100").json()
+    assert all(i["content_type"] in {"article", "repo"} for i in body["items"])
+    assert body["total"] == 34
+    only_article = client.get("/library?type=article&limit=100").json()["total"]
+    only_repo = client.get("/library?type=repo&limit=100").json()["total"]
+    assert body["total"] == only_article + only_repo
+
+
+def test_library_edition_filter_is_has_appearance_in() -> None:
+    body = client.get("/library?edition=tldr&limit=100").json()
+    assert body["total"] == 20
+    for item in body["items"]:
+        # Matched by HAS-APPEARANCE-IN: at least one appearance is in a tldr issue.
+        assert any(ap["edition"]["key"] == "tldr" for ap in item["appearances"])
+        # Inclusion-only: the row still reports its STABLE PRIMARY appearance (flat fields).
+        primary = item["appearances"][0]
+        assert item["edition"]["key"] == primary["edition"]["key"]
+        assert item["issue"]["id"] == primary["issue"]["id"]
+
+
+def test_library_category_filter_single_and_or_within() -> None:
+    body = client.get("/library?category=bigtech&limit=100").json()
+    assert body["total"] == 4
+    for item in body["items"]:
+        assert any(
+            ap["category"] is not None and ap["category"]["slug"] == "bigtech"
+            for ap in item["appearances"]
+        )
+    # OR within: bigtech ∪ strategy.
+    both = client.get("/library?category=bigtech&category=strategy&limit=100").json()
+    assert both["total"] == 8
+    for item in both["items"]:
+        assert any(
+            ap["category"] is not None and ap["category"]["slug"] in {"bigtech", "strategy"}
+            for ap in item["appearances"]
+        )
+
+
+def test_library_starred_filter_reflects_seed() -> None:
+    body = client.get("/library?starred=true&limit=100").json()
+    # 14 starred items in the seed for the stub user.
+    assert body["total"] == 14
+    assert all(i["starred"] is True for i in body["items"])
+    titles = [i["title"] for i in body["items"]]
+    assert any(t.startswith("Anthropic Files to Go Public") for t in titles)
+    # A known-unstarred item (Nvidia PCs) must NOT appear.
+    assert not any(t.startswith("Nvidia Introduces First PCs") for t in titles)
+
+
+def test_library_and_across_dimensions() -> None:
+    # type=article AND edition=tldr -> intersection (article-type Content with a tldr appearance).
+    body = client.get("/library?type=article&edition=tldr&limit=100").json()
+    assert body["total"] == 16
+    for item in body["items"]:
+        assert item["content_type"] == "article"
+        assert any(ap["edition"]["key"] == "tldr" for ap in item["appearances"])
+
+
+def test_library_ignores_unknown_params() -> None:
+    # density / read_state are NOT query dimensions (grilled scope + ADR-0002): passing them
+    # changes nothing.
+    base = client.get("/library?limit=100").json()
+    with_density = client.get("/library?density=expanded&limit=100").json()
+    with_read = client.get("/library?read_state=unread&limit=100").json()
+    assert with_density["total"] == base["total"]
+    assert with_read["total"] == base["total"]
+    assert [i["id"] for i in with_density["items"]] == [i["id"] for i in base["items"]]
+    assert [i["id"] for i in with_read["items"]] == [i["id"] for i in base["items"]]
+
+
+# ─────────────────────────── /categories (#4) ───────────────────────────
+
+
+def test_categories_shape_and_sort_order() -> None:
+    body = client.get("/categories").json()
+    assert isinstance(body, list)
+    assert len(body) >= 1
+    for c in body:
+        assert set(c.keys()) == {"slug", "label", "hue"}
+    slugs = [c["slug"] for c in body]
+    # Ordered by categories.sort (CAT_ORDER): headlines < bigtech < strategy, etc.
+    for earlier, later in [("headlines", "bigtech"), ("bigtech", "strategy")]:
+        if earlier in slugs and later in slugs:
+            assert slugs.index(earlier) < slugs.index(later)
+    by_slug = {c["slug"]: c for c in body}
+    # hue is the stored value VERBATIM.
+    assert by_slug["bigtech"]["hue"] == "var(--c-bigtech)"
+    assert by_slug["bigtech"]["label"] == "Big Tech & Startups"

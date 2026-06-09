@@ -3,21 +3,35 @@
 // The account 'user' icon opens a non-functional Account stub panel.
 
 import { useEffect, useRef, useState } from "react";
+import type { CategoryRef, Edition, LibraryFilters } from "../types";
 import { Ico, Logo } from "./atoms";
 import type { IcoName } from "./atoms";
+import { FilterPanel } from "./FilterPanel";
 
 export type View = "editorial" | "library" | "search";
+
+/** Everything the Library FilterPanel needs, threaded through the TopBar from App. */
+export interface FilterPanelProps {
+  editions: Edition[];
+  categories: CategoryRef[];
+  filters: LibraryFilters;
+  onToggleVal: (dim: "types" | "editions" | "categories", val: string) => void;
+  onToggleStarred: () => void;
+  onClear: () => void;
+}
 
 function IconBtn({
   name,
   on = false,
   onClick,
   title,
+  badge = false,
 }: {
   name: IcoName;
   on?: boolean;
   onClick?: () => void;
   title: string;
+  badge?: boolean;
 }) {
   return (
     <button
@@ -46,6 +60,21 @@ function IconBtn({
       }}
     >
       <Ico name={name} s={19} />
+      {/* active-filters badge dot — inline style + var(--accent) (recall.css is never edited) */}
+      {badge && (
+        <span
+          aria-hidden
+          style={{
+            position: "absolute",
+            top: 6,
+            right: 6,
+            width: 7,
+            height: 7,
+            borderRadius: 999,
+            background: "var(--accent)",
+          }}
+        />
+      )}
     </button>
   );
 }
@@ -126,12 +155,20 @@ export function TopBar({
   onGo,
   dark,
   onToggleDark,
+  filterOpen,
+  onToggleFilter,
+  filterCount,
+  filterPanelProps,
   mob = false,
 }: {
   view: View;
   onGo: (v: View) => void;
   dark: boolean;
   onToggleDark: () => void;
+  filterOpen: boolean;
+  onToggleFilter: () => void;
+  filterCount: number;
+  filterPanelProps: FilterPanelProps;
   mob?: boolean;
 }) {
   const [accountOpen, setAccountOpen] = useState(false);
@@ -210,7 +247,13 @@ export function TopBar({
             on={view === "search"}
             onClick={() => onGo("search")}
           />
-          <IconBtn name="filter" title="Filters" onClick={() => onGo("library")} />
+          <IconBtn
+            name="filter"
+            title="Filters"
+            on={filterOpen}
+            badge={filterCount > 0}
+            onClick={onToggleFilter}
+          />
           {/* divider hides on mobile (search/filter/theme stay) */}
           {!mob && (
             <div style={{ width: 1, height: 22, background: "var(--line)", margin: "0 6px" }} />
@@ -230,6 +273,18 @@ export function TopBar({
           )}
         </div>
       </div>
+      {filterOpen && (
+        <FilterPanel
+          editions={filterPanelProps.editions}
+          categories={filterPanelProps.categories}
+          filters={filterPanelProps.filters}
+          onToggleVal={filterPanelProps.onToggleVal}
+          onToggleStarred={filterPanelProps.onToggleStarred}
+          onClear={filterPanelProps.onClear}
+          filterCount={filterCount}
+          mob={mob}
+        />
+      )}
       {accountOpen && <AccountPanel onClose={() => setAccountOpen(false)} />}
     </header>
   );

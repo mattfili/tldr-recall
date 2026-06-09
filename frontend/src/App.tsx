@@ -1,25 +1,50 @@
-// Recall app root (#3 — the real Editorial UI port).
-// Owns view + edition state, wires persisted dark-mode prefs, and renders the
-// recall.css design system. The app root carries className "rc app" (+" dark")
-// so the .rc / .rc.dark CSS variables apply.
+// Recall app root (#3 Editorial + #4 Library).
+// Owns view + edition state, the Library filter state (+ filter panel open), wires persisted
+// prefs (dark mode + density), and renders the recall.css design system. The app root carries
+// className "rc app" (+" dark") so the .rc / .rc.dark CSS variables apply.
 
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import "./styles/recall.css";
-import { useEditions } from "./api/queries";
+import { useCategories, useEditions } from "./api/queries";
 import { EditorialView } from "./components/EditorialView";
+import { LibraryView } from "./components/LibraryView";
 import { PlaceholderView } from "./components/PlaceholderView";
 import { TopBar } from "./components/TopBar";
 import type { View } from "./components/TopBar";
+import type { LibraryFilters } from "./types";
 import { useMobile } from "./useMobile";
 import { usePrefs } from "./usePrefs";
 
+const EMPTY_FILTERS: LibraryFilters = {
+  types: [],
+  editions: [],
+  categories: [],
+  starredOnly: false,
+};
+
+type Dim = "types" | "editions" | "categories";
+
 export default function App() {
-  const { prefs, toggleDark, setEdition } = usePrefs();
+  const { prefs, toggleDark, setEdition, setDensity } = usePrefs();
   const [view, setView] = useState<View>("editorial");
   const mob = useMobile();
 
+  // Library filter state lives here (the prototype kept it in App context).
+  const [filters, setFilters] = useState<LibraryFilters>(EMPTY_FILTERS);
+  const [filterOpen, setFilterOpen] = useState(false);
+
   const editionsQuery = useEditions();
-  const editions = editionsQuery.data ?? [];
+  const editionsData = editionsQuery.data;
+  const editions = useMemo(() => editionsData ?? [], [editionsData]);
+  const categoriesQuery = useCategories();
+  const categoriesData = categoriesQuery.data;
+  const categories = useMemo(() => categoriesData ?? [], [categoriesData]);
+
+  const filterCount =
+    filters.types.length +
+    filters.editions.length +
+    filters.categories.length +
+    (filters.starredOnly ? 1 : 0);
 
   const go = (v: View) => {
     setView(v);
@@ -31,12 +56,62 @@ export default function App() {
     window.scrollTo({ top: 0 });
   };
 
+  // Filter icon: open the FilterPanel; if not already on Library, switch to it too
+  // (preserves the old "filter routes to library" behavior AND opens the panel).
+  const onToggleFilter = useCallback(() => {
+    setFilterOpen((open) => {
+      const next = !open;
+      if (next && view !== "library") {
+        setView("library");
+        window.scrollTo({ top: 0 });
+      }
+      return next;
+    });
+  }, [view]);
+
+  const toggleFilterVal = useCallback((dim: Dim, val: string) => {
+    setFilters((f) => {
+      const cur = f[dim];
+      const next = cur.includes(val) ? cur.filter((v) => v !== val) : [...cur, val];
+      return { ...f, [dim]: next };
+    });
+  }, []);
+
+  const toggleStarredOnly = useCallback(
+    () => setFilters((f) => ({ ...f, starredOnly: !f.starredOnly })),
+    [],
+  );
+
+  const clearFilters = useCallback(() => setFilters(EMPTY_FILTERS), []);
+
+  const filterPanelProps = useMemo(
+    () => ({
+      editions,
+      categories,
+      filters,
+      onToggleVal: toggleFilterVal,
+      onToggleStarred: toggleStarredOnly,
+      onClear: clearFilters,
+    }),
+    [editions, categories, filters, toggleFilterVal, toggleStarredOnly, clearFilters],
+  );
+
   return (
     <div
       className={"rc app" + (prefs.dark ? " dark" : "")}
       style={{ minHeight: "100vh", background: "var(--paper)" }}
     >
-      <TopBar view={view} onGo={go} dark={prefs.dark} onToggleDark={toggleDark} mob={mob} />
+      <TopBar
+        view={view}
+        onGo={go}
+        dark={prefs.dark}
+        onToggleDark={toggleDark}
+        filterOpen={filterOpen}
+        onToggleFilter={onToggleFilter}
+        filterCount={filterCount}
+        filterPanelProps={filterPanelProps}
+        mob={mob}
+      />
       <main>
         {view === "editorial" &&
           (editions.length > 0 ? (
@@ -57,9 +132,13 @@ export default function App() {
             </div>
           ))}
         {view === "library" && (
-          <PlaceholderView
-            title="Library"
-            note="Your saved-content library with filters lands in a later milestone."
+          <LibraryView
+            filters={filters}
+            density={prefs.density}
+            onSetDensity={setDensity}
+            onClearFilters={clearFilters}
+            filterCount={filterCount}
+            mob={mob}
           />
         )}
         {view === "search" && (
