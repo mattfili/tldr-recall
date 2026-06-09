@@ -10,8 +10,8 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import Integer, String, text
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB
+from sqlalchemy import Computed, Integer, String, text
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from recall.models.base import Base, timestamptz, uuid_pk
@@ -21,6 +21,24 @@ if TYPE_CHECKING:
     from recall.models.appearance import ContentAppearance
     from recall.models.embedding import ContentEmbedding
     from recall.models.user_content_state import UserContentState
+
+
+def _weighted(column_expr: str, weight: str) -> str:
+    return f"setweight(to_tsvector('pg_catalog.english'::regconfig, {column_expr}), '{weight}')"
+
+
+# The generated search_tsv expression — IDENTICAL to migration 0003's SEARCH_TSV_EXPRESSION
+# (assembled from per-column fragments only to keep line length sane). Weights A>B>C>D feed
+# ts_rank_cd so title hits outrank summary, then tags, then domain.
+SEARCH_TSV_EXPRESSION = (
+    _weighted("coalesce(title, '')", "A")
+    + " || "
+    + _weighted("coalesce(summary, '')", "B")
+    + " || "
+    + _weighted("recall_tags_text(tags)", "C")
+    + " || "
+    + _weighted("coalesce(domain, '')", "D")
+)
 
 
 class Content(Base):
@@ -43,6 +61,17 @@ class Content(Base):
     first_seen_at: Mapped[datetime] = mapped_column(timestamptz(), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         timestamptz(), nullable=False, server_default=text("now()")
+    )
+
+    # search-internal lexical FTS vector (#7). STORED generated column, DB-maintained —
+    # NEVER written by repositories and NOT exposed in build_content / the Content schema.
+    # Keeps Base.metadata in sync with migration 0003 (same expression, persisted=True). The
+    # tags arm goes through the IMMUTABLE recall_tags_text() helper created by migration 0003,
+    # since array_to_string is only STABLE and would make the STORED expression illegal.
+    search_tsv: Mapped[str | None] = mapped_column(
+        TSVECTOR,
+        Computed(SEARCH_TSV_EXPRESSION, persisted=True),
+        nullable=True,
     )
 
     appearances: Mapped[list[ContentAppearance]] = relationship(

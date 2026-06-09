@@ -165,6 +165,74 @@ export interface IssueReadState {
   read_state: string;
 }
 
+// ── unified hybrid search (#7, schemas/search.py; spec §8, ADR-0001/0002/0003) ──
+//
+// Mirror the pydantic search schemas VERBATIM. There is NO read_state anywhere (ADR-0002 —
+// the read cue was removed from the content intent lexicon).
+
+/** Explicit UI filters, ANDed with the intent the backend detects from the query text. */
+export interface SearchFilters {
+  types: string[];
+  editions: string[];
+  categories: string[];
+  starred: boolean;
+}
+
+/** POST /search body: a free-text query over the WHOLE Library + optional explicit filters. */
+export interface SearchRequest {
+  query: string;
+  limit?: number;
+  offset?: number;
+  filters?: SearchFilters;
+}
+
+/**
+ * HIDDEN per-hit provenance (schemas/search.py MatchExplanation). Response-only — NOT rendered
+ * in the UI. `matched_via` lists contributing signals ("lexical" | "vector" | "type_boost");
+ * `degraded` is true when the vector arm was skipped (ADR-0003 graceful degradation).
+ */
+export interface MatchExplanation {
+  matched_via: string[];
+  lexical_rank?: number | null;
+  vector_rank?: number | null;
+  fused_score: number;
+  type_boost?: number | null;
+  degraded?: boolean | null;
+}
+
+/**
+ * One search result (schemas/search.py SearchHit): the full Content shape + a relevance `score`
+ * + a HIDDEN `match_explanation`. SearchHit is a Content SUPERSET, so <ContentItem it={hit} />
+ * renders it unchanged.
+ */
+export interface SearchHit extends Content {
+  score: number;
+  match_explanation: MatchExplanation;
+}
+
+/** What the parser read from the query text (schemas/search.py DetectedIntent). NO read_state. */
+export interface DetectedIntent {
+  types: string[];
+  negations: string[];
+}
+
+/** Page-like search envelope (schemas/search.py SearchResponse). */
+export interface SearchResponse {
+  items: SearchHit[];
+  total: number;
+  limit: number;
+  offset: number;
+  detected: DetectedIntent;
+}
+
+/** A smart collection (schemas/search.py CollectionRef); resolved LIVE through the pipeline. */
+export interface CollectionRef {
+  slug: string;
+  label: string;
+  query: string;
+  hue: string;
+}
+
 // ── client-only state (NOT wire shapes) ──
 //
 // The wire types above mirror schemas/common.py verbatim. GET /library returns

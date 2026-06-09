@@ -23,6 +23,18 @@ class CollectionRepository(Repository):
             )
         )
 
+    def list_all(self, *, user_id: uuid.UUID | None = None) -> list[Collection]:
+        """Every collection for the scope (seeded/global when ``user_id`` is None), in a stable
+        order (created_at, then slug to break ties). Drives ``GET /collections``.
+        """
+        return list(
+            self.session.scalars(
+                select(Collection)
+                .where(Collection.user_id.is_(user_id))
+                .order_by(Collection.created_at.asc(), Collection.slug.asc())
+            ).all()
+        )
+
     def upsert(
         self,
         *,

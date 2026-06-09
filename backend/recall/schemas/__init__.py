@@ -25,12 +25,23 @@ from recall.schemas.issue import (
     IssueSummary,
 )
 from recall.schemas.saves import SaveState
+from recall.schemas.search import (
+    CollectionRef,
+    DetectedIntent,
+    MatchExplanation,
+    SearchFilters,
+    SearchHit,
+    SearchRequest,
+    SearchResponse,
+)
 
 __all__ = [
     "Appearance",
     "Category",
     "CategoryRef",
+    "CollectionRef",
     "Content",
+    "DetectedIntent",
     "Edition",
     "EditionRef",
     "IssueDetail",
@@ -39,6 +50,11 @@ __all__ = [
     "IssueRef",
     "IssueSection",
     "IssueSummary",
+    "MatchExplanation",
     "Page",
     "SaveState",
+    "SearchFilters",
+    "SearchHit",
+    "SearchRequest",
+    "SearchResponse",
 ]

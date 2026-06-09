@@ -65,5 +65,24 @@ class EmbeddingRepository(Repository):
         ).all()
         return set(rows)
 
+    def count_for(self, kind: EmbeddingKind | str, model: str) -> int:
+        """Row count for a specific ``(kind, model)`` — the #7 degradation gate's second input.
+
+        The search service calls ``count_for(combined, active_model)``; ``0`` -> DEGRADED
+        (FTS-only, the embedder is NEVER built so no key is needed). Cheap COUNT, mirroring the
+        ``existing_content_ids`` predicate.
+        """
+        return (
+            self.session.scalar(
+                select(func.count())
+                .select_from(ContentEmbedding)
+                .where(
+                    ContentEmbedding.kind == EmbeddingKind(kind),
+                    ContentEmbedding.model == model,
+                )
+            )
+            or 0
+        )
+
     def count(self) -> int:
         return self.session.scalar(select(func.count()).select_from(ContentEmbedding)) or 0
