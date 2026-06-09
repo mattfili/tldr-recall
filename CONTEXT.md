@@ -16,8 +16,12 @@ _Avoid_: Favorite, pin, collect
 Search always ranges over the whole Library (all ingested Content), never only the bookmarked subset. "Search across history" is the core capability.
 
 **Read state**:
-Whether a reader has read a piece of Content (read / unread). A per-reader fact, independent of whether it is saved — you can read without saving, and save without reading.
-_Avoid_: Seen, opened
+Whether a reader has been through an **Issue** (read / unread) — a per-reader, per-Issue fact, surfaced on the edition rail and issue nav (e.g. to catch up on missed Issues). It is **not** a property of Content: individual articles carry no read/unread state.
+_Avoid_: per-article read, marking articles read, Seen
+
+**Engagement**:
+Behavioral signals on a piece of Content — opening it (clicking through to the source) or sharing it. Captured for **analytics only** (PostHog) to inform editorial/business decisions; never a user-facing state, and nothing the reader toggles or filters on. The article-level counterpart to the (Issue-level) Read state.
+_Avoid_: read / opened (as a Content property)
 
 **Content**:
 The core unit (the genus) — a *canonical* summarized link, deduplicated globally by `content_hash`. A piece of Content may be a news piece, a repo, a paper, a substack, or a website; which one is its **content type**. The same link running in several editions is one Content with several appearances. The Library is the collection of all Content. See [ADR-0001](docs/adr/0001-canonical-content-with-appearances.md).
