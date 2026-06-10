@@ -21,6 +21,11 @@ dev = [
     "httpx",
     "ruff",
 ]
+# Only the operator-run gmail-dump job (§6.8) needs these; CI never installs them.
+gmail = [
+    "google-api-python-client",
+    "google-auth-oauthlib",
+]
 
 [project.scripts]
 recall = "recall.jobs.cli:main"
