@@ -6,7 +6,8 @@ ordered stream of text blocks and classifies them with a small state machine:
 
 * emoji/bold section headers -> ``RawSection.category_label`` (emoji stripped, label kept);
 * ``Title (N minute read)`` / ``Title (GitHub Repo)`` anchors -> ``RawArticle`` with the
-  raw tracking href (NO resolution here — that is §6.4's job);
+  raw tracking href (NO resolution here — that is §6.4's job) and the parenthetical
+  label preserved on ``RawArticle.label`` for classification (§6.5);
 * following plain paragraphs -> the article summary (multi-paragraph supported);
 * sponsor blocks are NOT Content (CONTEXT.md): ``(Sponsor)``-suffixed items and
   "Together With" masthead slots are skipped entirely, pitch paragraphs included.
@@ -234,7 +235,7 @@ def _classify(blocks: list[_Block]) -> tuple[list[RawSection], str | None]:
                 continue
             skipping_sponsor = False
             current_article = RawArticle(
-                title=title, summary="", raw_url=block.href, read_minutes=minutes
+                title=title, summary="", raw_url=block.href, read_minutes=minutes, label=label
             )
             if current_section is None:  # tolerate a title before any header
                 current_section = RawSection(category_label="News", articles=[])

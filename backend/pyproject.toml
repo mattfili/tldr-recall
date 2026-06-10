@@ -13,12 +13,12 @@ dependencies = [
     "pgvector",
     "alembic",
     "openai>=1",
+    "httpx",
 ]
 
 [dependency-groups]
 dev = [
     "pytest",
-    "httpx",
     "ruff",
 ]
 # Only the operator-run gmail-dump job (§6.8) needs these; CI never installs them.
