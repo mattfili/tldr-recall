@@ -36,6 +36,11 @@ out/
 *.local
 .vite/
 
+# ── Gmail export corpus (§6.8) — personal email, never committed ──
+samples/
+*.eml
+*.mbox
+
 # ── logs ──
 *.log
 npm-debug.log*
