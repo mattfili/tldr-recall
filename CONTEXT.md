@@ -46,6 +46,10 @@ _Avoid_: Newsletter (ambiguous), publication
 One dated edition of a newsletter (e.g. TLDR AI for Jun 2 2026, #1487). A set of appearances grouped into themed sections.
 _Avoid_: Email, edition (an issue is *of* an edition), newsletter
 
+**Sponsor block**:
+An advertisement in an issue — the "Together With" masthead slot or an item suffixed "(Sponsor)". Sponsor blocks are **not Content**: ingestion skips them entirely, so they never enter the Library, search, or embeddings.
+_Avoid_: sponsored article, ad content
+
 **Ingestion source**:
 Where issues are fetched from before parsing — a Gmail export folder, the live Gmail MCP, or a future first-party TLDR REST feed, behind the `IngestionSource` interface. This is the *only* thing "source" refers to; never use "source" for an item's content type.
 _Avoid_: Source (bare, when content type is meant)

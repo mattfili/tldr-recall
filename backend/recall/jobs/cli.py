@@ -7,6 +7,7 @@ A tiny argparse front-end so the seed job is runnable two ways:
 * ``uv run recall embed-backfill [--backend ...]`` — embed the ``combined`` kind for all content.
 * ``uv run recall mbox-split <takeout.mbox>`` — backfill GMAIL_EXPORT_DIR from a Takeout mbox.
 * ``uv run recall gmail-dump`` — incremental Gmail API pull into GMAIL_EXPORT_DIR (§6.8).
+* ``uv run recall parse <file.eml>`` — parse one TLDR email into RawIssue JSON (§6.3).
 
 Further subcommands (ingest, reindex) land in later issues.
 """
@@ -17,6 +18,7 @@ import argparse
 from collections.abc import Sequence
 from pathlib import Path
 
+from recall.ingestion.parser import parse_eml
 from recall.jobs import gmail_dump as dump
 from recall.jobs.embed_backfill import embed_backfill
 from recall.jobs.seed import seed
@@ -60,6 +62,12 @@ def _cmd_gmail_dump(args: argparse.Namespace) -> int:
     print("Gmail dump complete. Counts:")
     for label, n in counts.items():
         print(f"  {label:<20} {n}")
+    return 0
+
+
+def _cmd_parse(args: argparse.Namespace) -> int:
+    issue = parse_eml(Path(args.eml))
+    print(issue.model_dump_json(indent=2))
     return 0
 
 
@@ -121,6 +129,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Cached OAuth token path (created on first run).",
     )
     dump_parser.set_defaults(func=_cmd_gmail_dump)
+
+    parse_parser = sub.add_parser(
+        "parse",
+        help="Parse one TLDR .eml into RawIssue JSON (§6.3); sponsor blocks are skipped.",
+    )
+    parse_parser.add_argument("eml", help="Path to the .eml file (raw RFC822 message).")
+    parse_parser.set_defaults(func=_cmd_parse)
 
     return parser
 
