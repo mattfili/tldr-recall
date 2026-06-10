@@ -872,6 +872,7 @@ source = { editable = "." }
 dependencies = [
     { name = "alembic" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "openai" },
     { name = "pgvector" },
     { name = "psycopg", extra = ["binary"] },
@@ -883,7 +884,6 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "httpx" },
     { name = "pytest" },
     { name = "ruff" },
 ]
@@ -896,6 +896,7 @@ gmail = [
 requires-dist = [
     { name = "alembic" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "openai", specifier = ">=1" },
     { name = "pgvector" },
     { name = "psycopg", extras = ["binary"] },
@@ -907,7 +908,6 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "httpx" },
     { name = "pytest" },
     { name = "ruff" },
 ]

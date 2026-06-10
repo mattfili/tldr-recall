@@ -20,6 +20,7 @@ class RawArticle(BaseModel):
     raw_url: str | None = None  # tracking/redirect URL as found
     read_minutes: int | None = None
     resources: list[dict] | None = None
+    label: str | None = None  # TLDR's parenthetical title label, e.g. 'GitHub Repo' (§6.5)
 
 
 class RawSection(BaseModel):

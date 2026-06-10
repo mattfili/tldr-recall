@@ -8,6 +8,7 @@ A tiny argparse front-end so the seed job is runnable two ways:
 * ``uv run recall mbox-split <takeout.mbox>`` — backfill GMAIL_EXPORT_DIR from a Takeout mbox.
 * ``uv run recall gmail-dump`` — incremental Gmail API pull into GMAIL_EXPORT_DIR (§6.8).
 * ``uv run recall parse <file.eml>`` — parse one TLDR email into RawIssue JSON (§6.3).
+* ``uv run recall resolve-url <url>`` — resolve + classify one link (§6.4/§6.5, cached).
 
 Further subcommands (ingest, reindex) land in later issues.
 """
@@ -22,6 +23,33 @@ from recall.ingestion.parser import parse_eml
 from recall.jobs import gmail_dump as dump
 from recall.jobs.embed_backfill import embed_backfill
 from recall.jobs.seed import seed
+
+
+def _cmd_resolve_url(args: argparse.Namespace) -> int:
+    # Imports kept local: resolve.py is the network-touching ingestion module and pulls in
+    # httpx; the other subcommands never need it.
+    from recall.db import SessionLocal
+    from recall.ingestion.base import RawArticle
+    from recall.ingestion.classify import classify_type
+    from recall.ingestion.resolve import resolve_url
+    from recall.repositories import UrlResolutionRepository
+
+    session = SessionLocal()
+    try:
+        repo = UrlResolutionRepository(session)
+        resolved, domain = resolve_url(args.url, repo=repo)
+        content_type = classify_type(domain, resolved, RawArticle(title="", summary=""))
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+    print(f"resolved: {resolved}")
+    print(f"domain:   {domain or ''}")
+    print(f"type:     {content_type.value}")
+    return 0
 
 
 def _cmd_seed(_args: argparse.Namespace) -> int:
@@ -136,6 +164,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parse_parser.add_argument("eml", help="Path to the .eml file (raw RFC822 message).")
     parse_parser.set_defaults(func=_cmd_parse)
+
+    resolve_parser = sub.add_parser(
+        "resolve-url",
+        help="Resolve one (tracking) URL to its destination + domain and classify its "
+        "content type (§6.4/§6.5). Results are cached in url_resolutions — each distinct "
+        "link is fetched at most once ever.",
+    )
+    resolve_parser.add_argument("url", help="Raw URL (e.g. a TLDR tracking link).")
+    resolve_parser.set_defaults(func=_cmd_resolve_url)
 
     return parser
 

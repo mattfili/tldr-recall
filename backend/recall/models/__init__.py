@@ -24,6 +24,7 @@ from recall.models.enums import (
 )
 from recall.models.ingest_run import IngestRun
 from recall.models.issue import Issue
+from recall.models.url_resolution import UrlResolution
 from recall.models.user import User
 from recall.models.user_content_state import UserContentState
 from recall.models.user_issue_state import UserIssueState
@@ -42,6 +43,7 @@ __all__ = [
     "IngestRun",
     "Issue",
     "ReadState",
+    "UrlResolution",
     "User",
     "UserContentState",
     "UserIssueState",
