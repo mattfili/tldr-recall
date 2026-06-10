@@ -29,7 +29,8 @@ from pathlib import Path
 from recall.config import settings
 
 TLDR_SENDER = "tldrnewsletter.com"
-DEFAULT_QUERY = f"from:{TLDR_SENDER} newer_than:2y"
+# Corpus capped at ~3 months out of respect for TLDR's click tracking (grilled 2026-06-10).
+DEFAULT_QUERY = f"from:{TLDR_SENDER} newer_than:3m"
 GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 
 DEFAULT_CREDENTIALS_PATH = Path.home() / ".recall" / "gmail_credentials.json"
