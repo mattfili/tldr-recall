@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from recall.models import ReadState, UserIssueState
 from recall.repositories.base import Repository
@@ -63,6 +63,15 @@ class UserIssueStateRepository(Repository):
             state.read_state = ReadState(read_state)
         self.session.flush()
         return state
+
+    def delete_all(self) -> int:
+        """Bulk-delete every per-reader Issue state row (the --replace wipe).
+
+        Must run BEFORE the issues wipe: the issue_id FK has no ON DELETE CASCADE.
+        """
+        result = self.session.execute(delete(UserIssueState))
+        self.session.flush()
+        return result.rowcount or 0
 
     def count(self) -> int:
         return self.session.scalar(select(func.count()).select_from(UserIssueState)) or 0

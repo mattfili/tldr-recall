@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import joinedload
 
 from recall.models import Category, ContentAppearance, Edition, Issue
@@ -111,6 +111,12 @@ class AppearanceRepository(Repository):
             appearance.position = position
         self.session.flush()
         return appearance
+
+    def delete_all(self) -> int:
+        """Bulk-delete every appearance (the --replace wipe). Returns the rowcount."""
+        result = self.session.execute(delete(ContentAppearance))
+        self.session.flush()
+        return result.rowcount or 0
 
     def count(self) -> int:
         return self.session.scalar(select(func.count()).select_from(ContentAppearance)) or 0

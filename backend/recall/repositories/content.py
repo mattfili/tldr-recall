@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import and_, exists, func, select
+from sqlalchemy import and_, delete, exists, func, select
 
 from recall.models import (
     Category,
@@ -76,6 +76,16 @@ class ContentRepository(Repository):
 
     def count(self) -> int:
         return self.session.scalar(select(func.count()).select_from(Content)) or 0
+
+    def delete_all(self) -> int:
+        """Bulk-delete every Content row (the --replace wipe). Returns the rowcount.
+
+        DB-level ``ON DELETE CASCADE`` clears dependent appearances/embeddings;
+        ``user_content_state`` has NO cascade and must be wiped FIRST by the caller.
+        """
+        result = self.session.execute(delete(Content))
+        self.session.flush()
+        return result.rowcount or 0
 
     def list_all(self) -> list[Content]:
         """Every Content row, ordered deterministically (id ASC) — the backfill corpus walk.

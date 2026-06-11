@@ -9,14 +9,17 @@ A tiny argparse front-end so the seed job is runnable two ways:
 * ``uv run recall gmail-dump`` — incremental Gmail API pull into GMAIL_EXPORT_DIR (§6.8).
 * ``uv run recall parse <file.eml>`` — parse one TLDR email into RawIssue JSON (§6.3).
 * ``uv run recall resolve-url <url>`` — resolve + classify one link (§6.4/§6.5, cached).
-
-Further subcommands (ingest, reindex) land in later issues.
+* ``uv run recall ingest [--since YYYY-MM-DD] [--replace]`` — the M4 pipeline (§6.1, #26):
+  GMAIL_EXPORT_DIR's .eml corpus -> issues/content/appearances. Ingestion is CLI-only:
+  ``POST /admin/ingest`` is explicitly deferred (no server-fetchable source exists in v1 —
+  documented deviation from spec §6.6).
 """
 
 from __future__ import annotations
 
 import argparse
 from collections.abc import Sequence
+from datetime import date, timedelta
 from pathlib import Path
 
 from recall.ingestion.parser import parse_eml
@@ -49,6 +52,25 @@ def _cmd_resolve_url(args: argparse.Namespace) -> int:
     print(f"resolved: {resolved}")
     print(f"domain:   {domain or ''}")
     print(f"type:     {content_type.value}")
+    return 0
+
+
+def _cmd_ingest(args: argparse.Namespace) -> int:
+    # Lazy import: pipeline.py pulls in httpx via resolve.py (same convention as
+    # _cmd_resolve_url) — the other subcommands never need it.
+    from recall.ingestion.gmail_export import GmailExportSource
+    from recall.ingestion.pipeline import ingest
+
+    since = date.fromisoformat(args.since) if args.since else date.today() - timedelta(days=90)
+    source = GmailExportSource()
+    print(f"Ingesting *.eml from {source.export_dir} (since {since.isoformat()}"
+          f"{', REPLACING demo data' if args.replace else ''}) ...")
+    counts = ingest(since=since, replace=args.replace, source=source)
+    print("Ingest complete. Counts:")
+    for label, n in counts.items():
+        print(f"  {label:<24} {n}")
+    print("Embeddings are NOT enqueued — run `uv run recall embed-backfill` to light up "
+          "hybrid search.")
     return 0
 
 
@@ -173,6 +195,29 @@ def build_parser() -> argparse.ArgumentParser:
     )
     resolve_parser.add_argument("url", help="Raw URL (e.g. a TLDR tracking link).")
     resolve_parser.set_defaults(func=_cmd_resolve_url)
+
+    ingest_parser = sub.add_parser(
+        "ingest",
+        help="Ingest GMAIL_EXPORT_DIR's .eml corpus: upsert issues/content/appearances "
+        "(idempotent — reruns never duplicate). Embeddings are NOT enqueued; run "
+        "`recall embed-backfill` afterwards. POST /admin/ingest is deferred (no "
+        "server-fetchable source in v1; documented deviation from spec §6.6).",
+    )
+    ingest_parser.add_argument(
+        "--since",
+        default=None,
+        metavar="YYYY-MM-DD",
+        help="Only ingest issues published on/after this date "
+        "(default: 90 days before today — the 3-month corpus window).",
+    )
+    ingest_parser.add_argument(
+        "--replace",
+        action="store_true",
+        help="FIRST wipe the demo data (content, appearances, embeddings, per-reader "
+        "state, issues), THEN ingest fresh. Editions, categories, collections, users, "
+        "and the url_resolutions etiquette cache are kept (upserts handle them).",
+    )
+    ingest_parser.set_defaults(func=_cmd_ingest)
 
     return parser
 
