@@ -10,6 +10,7 @@
 // (full-width input/results, shortened placeholder on mobile), matching the other views.
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { analytics } from "../analytics";
 import { useCollections, useSearch } from "../api/queries";
 import type { SearchFilters } from "../types";
 import { Ico } from "./atoms";
@@ -54,6 +55,23 @@ export function SearchView({
 
   const items = data?.pages.flatMap((p) => p.items) ?? [];
   const total = data?.pages[0]?.total ?? 0;
+
+  // search_performed (#24): fire ONCE when a submitted query's first page of results
+  // arrives. Deduped on the trimmed query so pagination/refetch never re-fire it.
+  const firstPage = data?.pages[0];
+  const firedFor = useRef<string | null>(null);
+  useEffect(() => {
+    const q = submitted.trim();
+    if (!q || !firstPage) return;
+    if (firedFor.current === q) return;
+    firedFor.current = q;
+    analytics.capture("search_performed", {
+      query: q,
+      result_count: firstPage.total,
+      detected_types: firstPage.detected.types,
+      had_results: firstPage.total > 0,
+    });
+  }, [firstPage, submitted]);
 
   // Infinite-scroll sentinel — same IntersectionObserver idiom as LibraryView.
   const sentinel = useRef<HTMLDivElement>(null);
@@ -256,8 +274,23 @@ export function SearchView({
                   {/* SearchHit is a Content superset — ContentItem renders a hit unchanged.
                       showEditions adds the additive multi-edition provenance badge
                       (#27, ADR-0001) when a hit appeared in more than one edition. */}
-                  {items.map((hit) => (
-                    <ContentItem key={hit.id} it={hit} showEditions />
+                  {/* #24: a result click fires BOTH result_open (rank = 0-based index across
+                      the flatMapped pages, i.e. the global position) and article_open with
+                      source_view="search" (the latter inside ContentItem.openArticle). */}
+                  {items.map((hit, i) => (
+                    <ContentItem
+                      key={hit.id}
+                      it={hit}
+                      showEditions
+                      sourceView="search"
+                      onOpen={() =>
+                        analytics.capture("result_open", {
+                          content_id: hit.id,
+                          rank: i,
+                          query: submitted.trim(),
+                        })
+                      }
+                    />
                   ))}
                   {hasNextPage && (
                     <div

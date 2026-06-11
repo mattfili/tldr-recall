@@ -240,3 +240,18 @@ describe("<App/> Library render", () => {
     );
   });
 });
+
+describe("<App/> analytics no-op default (#24)", () => {
+  it("shows NO consent banner when VITE_POSTHOG_KEY is unset (app unchanged from today)", async () => {
+    renderApp();
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { level: 1, name: "TLDR" })).toBeTruthy(),
+    );
+
+    // No key in the test env ⇒ the banner never exists and nothing analytics-shaped renders.
+    expect(screen.queryByRole("dialog", { name: "Analytics consent" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Decline" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Allow analytics" })).toBeNull();
+    // routeFetch throws on any unexpected URL, so a stray analytics request would fail loudly.
+  });
+});
