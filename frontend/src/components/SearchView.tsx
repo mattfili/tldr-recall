@@ -253,9 +253,11 @@ export function SearchView({
                 </div>
               ) : (
                 <>
-                  {/* SearchHit is a Content superset — ContentItem renders a hit unchanged. */}
+                  {/* SearchHit is a Content superset — ContentItem renders a hit unchanged.
+                      showEditions adds the additive multi-edition provenance badge
+                      (#27, ADR-0001) when a hit appeared in more than one edition. */}
                   {items.map((hit) => (
-                    <ContentItem key={hit.id} it={hit} />
+                    <ContentItem key={hit.id} it={hit} showEditions />
                   ))}
                   {hasNextPage && (
                     <div
