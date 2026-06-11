@@ -6,11 +6,13 @@
 import { useCallback, useMemo, useState } from "react";
 import "./styles/recall.css";
 import { useCategories, useEditions } from "./api/queries";
+import { BrowserChrome } from "./components/BrowserChrome";
 import { ConsentBanner } from "./components/ConsentBanner";
 import { EditorialView } from "./components/EditorialView";
 import { LibraryView } from "./components/LibraryView";
 import { SearchView } from "./components/SearchView";
 import { TopBar } from "./components/TopBar";
+import { platform } from "./platform";
 import type { View } from "./components/TopBar";
 import type { LibraryFilters, SearchFilters } from "./types";
 import { useMobile } from "./useMobile";
@@ -115,6 +117,8 @@ export default function App() {
       className={"rc app" + (prefs.dark ? " dark" : "")}
       style={{ minHeight: "100vh", background: "var(--paper)" }}
     >
+      {/* Desktop in-app browser chrome (#25) — renders null on web / when closed. */}
+      <BrowserChrome />
       <TopBar
         view={view}
         onGo={go}
@@ -164,6 +168,19 @@ export default function App() {
           />
         )}
       </main>
+      {/* Web demo note (spec §10.5): the in-app reader is the desktop differentiator. */}
+      {!platform.isDesktop && (
+        <div
+          style={{
+            textAlign: "center",
+            padding: "18px 28px 26px",
+            fontSize: 12,
+            color: "var(--ink-4)",
+          }}
+        >
+          Links open in a new tab on the web — the in-app reader is a desktop feature.
+        </div>
+      )}
       {/* Analytics consent (#24) — only exists when a PostHog key is configured. */}
       <ConsentBanner />
     </div>

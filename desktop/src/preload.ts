@@ -1,13 +1,46 @@
-import { contextBridge } from "electron";
+import { contextBridge, ipcRenderer } from "electron";
 
 // Preload runs in an isolated context bridging the (sandboxed) renderer and
-// the main process. For Issue #1 (M0) the only thing the frontend needs is a
-// way to detect that it is running inside the Electron shell, so the
-// platform/ shim can branch web vs electron behavior (see frontend §10.3).
+// the main process. The exposed surface is MINIMAL by design (spec §10.4):
+// a desktop flag plus the in-app browser controls — nothing else. No raw
+// ipcRenderer, no Node globals, no event objects ever cross the bridge.
 //
-// The richer IPC surface for the in-app browser (open/navigate a
-// WebContentsView, back/forward, etc.) arrives in Issue #5 and will be added
-// to this exposed `recall` object then.
+// NOTE: this preload runs sandboxed (main window has sandbox: true), so it
+// cannot `require` local modules — the channel names below are inlined string
+// literals that MUST stay in sync with desktop/src/channels.ts.
+//
+// The canonical TypeScript shape of this bridge lives in
+// frontend/src/platform/index.ts (RecallBridge / RecallBrowserBridge /
+// BrowserState). Keep both in sync when changing the surface.
+
+interface BrowserState {
+  open: boolean;
+  url: string;
+  domain: string;
+  canGoBack: boolean;
+  canGoForward: boolean;
+}
+
+const STATE_CHANNEL = "recall:browser:state";
+
 contextBridge.exposeInMainWorld("recall", {
   isDesktop: true,
+  browser: {
+    open: (url: string): Promise<void> => ipcRenderer.invoke("recall:browser:open", url),
+    close: (): Promise<void> => ipcRenderer.invoke("recall:browser:close"),
+    reload: (): Promise<void> => ipcRenderer.invoke("recall:browser:reload"),
+    goBack: (): Promise<void> => ipcRenderer.invoke("recall:browser:goBack"),
+    goForward: (): Promise<void> => ipcRenderer.invoke("recall:browser:goForward"),
+    openInSystem: (): Promise<void> => ipcRenderer.invoke("recall:browser:openInSystem"),
+    /** Subscribe to browser state pushes; returns an unsubscribe function. */
+    onState: (cb: (state: BrowserState) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, state: BrowserState): void => {
+        cb(state); // sanitized state only — never the IPC event
+      };
+      ipcRenderer.on(STATE_CHANNEL, listener);
+      return () => {
+        ipcRenderer.removeListener(STATE_CHANNEL, listener);
+      };
+    },
+  },
 });

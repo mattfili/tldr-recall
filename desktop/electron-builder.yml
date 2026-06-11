@@ -10,6 +10,8 @@ directories:
 # build that the shell loads at runtime (../frontend/dist/index.html).
 files:
   - dist/**/*
+  # node --test suites compile alongside the app code; keep them out of the package.
+  - "!dist/**/*.test.*"
   - package.json
 extraResources:
   - from: ../frontend/dist

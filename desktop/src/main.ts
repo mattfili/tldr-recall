@@ -1,12 +1,10 @@
 import { app, BrowserWindow } from "electron";
 import * as path from "node:path";
+import { attachBrowser } from "./browser";
 
-// Recall Electron shell (Issue #1, M0).
-//
-// This is a MINIMAL shell whose only job is to host the platform-agnostic
-// frontend build. There is intentionally NO in-app browser here: the
-// WebContentsView-based in-app browser (browser.ts) and its IPC wiring land
-// in Issue #5. Keep this file to window creation + standard app lifecycle.
+// Recall Electron shell. Window creation + standard app lifecycle; the
+// in-app article browser (hardened WebContentsView + IPC, #25) lives in
+// browser.ts and is wired onto the window via attachBrowser().
 
 // In dev, the frontend Vite dev server URL is passed via ELECTRON_START_URL
 // (e.g. http://localhost:5173). In production we load the built frontend that
@@ -29,6 +27,8 @@ function createWindow(): void {
       preload: path.join(__dirname, "preload.js"),
     },
   });
+
+  attachBrowser(window);
 
   if (START_URL) {
     void window.loadURL(START_URL);
