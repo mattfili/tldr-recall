@@ -5,8 +5,10 @@
 //  - it.src        -> it.content_type   (SrcIcon kind)
 //  - it.sum        -> it.summary
 //  - it.read       -> it.read_minutes
-//  - it.ed (ED map)-> it.edition.name   (the PRIMARY appearance's edition per ADR-0001;
-//                                         no ED lookup — Content already carries it flat)
+//  - it.ed (ED map)-> editionNames(it)  (PRIMARY appearance's edition per ADR-0001, plus
+//                                         every other edition from appearances[] joined with
+//                                         " · " — the additive multi-edition badge, #27.
+//                                         Single-appearance output is unchanged, e.g. "TLDR")
 //
 // Titles render with ONE consistent style — Content has NO read state (ADR-0002), so there is
 // no unread-driven font-weight/color.
@@ -17,6 +19,7 @@
 
 import { useState } from "react";
 import { useToggleSave } from "../api/queries";
+import { editionNames } from "../format";
 import { platform } from "../platform";
 import type { Content } from "../types";
 import { Ico, ResourcePill, SrcIcon, Star } from "./atoms";
@@ -157,7 +160,7 @@ export function LibraryRow({
             className="mono"
             style={{ fontSize: 11, color: "var(--ink-3)", minWidth: 96, textAlign: "right" }}
           >
-            {it.edition.name}
+            {editionNames(it).join(" · ")}
           </span>
         )}
         <span

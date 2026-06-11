@@ -1,4 +1,4 @@
-// ContentItem — one article row in the Editorial view.
+// ContentItem — one article row in the Editorial view (also reused by SearchView for hits).
 // Ported from tldr-web/prototype.jsx ArticleItem + Actions.
 //
 // Scope notes:
@@ -7,9 +7,14 @@
 //    immediately, so the fill toggles with no local component state.
 //  - read-time / SrcBadge: articles & papers show "(N min read)"; other source
 //    types show "(<source label>)" (matches the prototype's SRC_NAME copy).
+//  - `showEditions` (#27, ADR-0001): when true AND the Content has appearances in MORE
+//    than one edition, an additive "TLDR · AI" provenance badge renders in the metadata
+//    cluster. Default false so the Editorial view is untouched, and single-edition
+//    Content stays pixel-identical (today it shows no edition here at all).
 
 import { useState } from "react";
 import { useToggleSave } from "../api/queries";
+import { editionNames } from "../format";
 import { platform } from "../platform";
 import type { Content } from "../types";
 import { FaviconChip, Ico, ResourcePill, Star } from "./atoms";
@@ -64,11 +69,18 @@ function Actions({ it, size = 19 }: { it: Content; size?: number }) {
   );
 }
 
-export function ContentItem({ it }: { it: Content }) {
+export function ContentItem({
+  it,
+  showEditions = false,
+}: {
+  it: Content;
+  showEditions?: boolean;
+}) {
   const openArticle = (e: React.MouseEvent) => {
     e.preventDefault();
     platform.openExternal(it.url);
   };
+  const editions = showEditions ? editionNames(it) : [];
 
   return (
     <article style={{ padding: "22px 0", borderBottom: "1px solid var(--line-2)" }}>
@@ -130,6 +142,16 @@ export function ContentItem({ it }: { it: Content }) {
           <span className="mono" style={{ fontSize: 12, color: "var(--ink-4)" }}>
             {it.domain}
           </span>
+          {/* Multi-edition provenance badge (#27) — only when >1 edition, so
+              single-appearance results render exactly as before (no edition). */}
+          {editions.length > 1 && (
+            <span
+              className="mono"
+              style={{ fontSize: 12, color: "var(--ink-4)", whiteSpace: "nowrap" }}
+            >
+              {editions.join(" · ")}
+            </span>
+          )}
           {it.resources && it.resources.map((r, i) => <ResourcePill key={i} r={r} />)}
         </div>
         <Actions it={it} />
