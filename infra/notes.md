@@ -1,47 +1,61 @@
-# Infra / deploy notes
+# Railway — hosted demo (issue #28, spec §12.2)
 
-> **Status: PLACEHOLDER.** Deployment is **M6** (see spec §14). Nothing here is
-> wired up yet. This file documents the *intended* Railway topology so the deploy
-> milestone has a starting point. `infra/railway.json` is a matching stub.
+Provisioned 2026-06-11 via the Railway CLI/API. **GitHub-connected: merges to `main` auto-deploy both app services.**
 
-## Intended topology (spec §12.2)
+## Project
 
-A single Railway project, GitHub-connected, with three services:
+| Thing | Value |
+|---|---|
+| Workspace | Matt Fili's Projects (`2884348b-0b3a-4f78-a282-3a80d9f8ed27`) |
+| Project | `tldr-recall` (`ac2b90d9-f5cc-45a6-8cde-c72a51dea226`) |
+| Environment | `production` (`4b1ababb-fc73-43db-8a99-f78f48fce923`) |
+| **Web (shareable URL)** | https://web-production-f5d0f.up.railway.app |
+| **API** | https://api-production-9cb1.up.railway.app |
 
-1. **db — Postgres + pgvector** (already provisioned on Railway).
-   - The `pgvector` extension is enabled via an Alembic migration that runs
-     `CREATE EXTENSION IF NOT EXISTS vector;` (added in #2).
-   - Dimension of the `content_embeddings.embedding` column matches
-     `RECALL_EMBED_DIM` (1536 for `text-embedding-3-small`).
+## Services
 
-2. **api — FastAPI backend.**
-   - Built from `backend/Dockerfile`.
-   - Start command: `uvicorn recall.main:app --host 0.0.0.0 --port $PORT`.
-   - Runs Alembic migrations on deploy.
-   - Healthcheck path: `/health`.
-   - Reads `DATABASE_URL` and the embedding/admin keys from Railway env vars
-     (the backend keys from `.env.example` / spec §12.3). Never commit secrets.
+1. **Postgres** (`df82aac2-…`) — Railway PostgreSQL template (volume + TCP proxy included).
+   Migration `0001` runs `CREATE EXTENSION IF NOT EXISTS vector;` on first API deploy; if the
+   image ever lacks pgvector, swap the service image to `pgvector/pgvector:pg16` *before* the
+   first deploy. `content_embeddings` dimension matches `RECALL_EMBED_DIM` (1536).
+2. **api** (`16202fe7-…`) — GitHub `mattfili/tldr-recall` @ `main`, rootDirectory `backend`,
+   built from `backend/Dockerfile`. **Migrations run on every deploy** (image CMD =
+   `alembic upgrade head && uvicorn`). Healthcheck `/health`.
+3. **web** (`e4182993-…`) — GitHub `mattfili/tldr-recall` @ `main`, rootDirectory `frontend`,
+   built from `frontend/Dockerfile` (Vite build → Caddy file server). `VITE_API_BASE_URL` is
+   baked at **build** time via Docker ARG (Vite semantics — changing it means a web rebuild).
 
-3. **web — static frontend.**
-   - Static build of `frontend/` (`npm ci && npm run build`) served by a tiny
-     static server (or Railway static hosting).
-   - `VITE_API_BASE_URL` set to the **api** service's public URL at build time.
+## Environment variables (names only — values live exclusively in Railway env)
 
-## Ingestion
+- **api**: `DATABASE_URL` — the reference
+  `postgresql+psycopg://${{Postgres.PGUSER}}:${{Postgres.PGPASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:5432/${{Postgres.PGDATABASE}}`
+  (private networking; the `+psycopg` scheme SQLAlchemy 2 requires — the template's raw
+  `postgres://` URL is not accepted), `EMBEDDING_API_KEY`, `RECALL_ADMIN_TOKEN`,
+  `CORS_ALLOW_ORIGINS` (JSON list incl. the web domain, localhost:5173, file://).
+- **web**: `VITE_API_BASE_URL` → the API domain. Optional: `VITE_POSTHOG_KEY` to enable
+  analytics (#24; consent-gated, no-op when absent).
 
-Manual trigger of `POST /admin/ingest` (guarded by `RECALL_ADMIN_TOKEN`) or a
-scheduled job — added in M4. The export job (`recall.jobs.gmail_dump`, §6.8)
-runs in the operator's environment; the backend stores no Gmail credentials.
+## Populating the hosted DB (operator-run, from a laptop)
 
-## Desktop
+Ingestion is CLI-only (#26); the hosted API has no corpus access by design (§6.8).
+Public connection string: Railway dashboard → Postgres → Connect → "Public Network"
+(or `railway connect`); convert the scheme to `postgresql+psycopg://`.
 
-Per spec decision §13.3, the desktop app talks to the hosted Railway **api**
-service so desktop and the web demo share one living dataset (option A). A
-bundled local backend (option B) is deferred to v2.
+```bash
+cd backend
+DATABASE_URL="postgresql+psycopg://<public-conn>" uv run recall ingest --replace
+DATABASE_URL="postgresql+psycopg://<public-conn>" uv run recall embed-backfill --backend cloud
+```
 
-## TODO when M6 lands
+Until the real corpus exists, the same recipe with `uv run recall seed` instead of
+`recall ingest --replace` gives the demo the seed dataset.
 
-- Replace `infra/railway.json` stub with real service definitions.
-- Document the GitHub-connected deploy flow and required Railway env vars.
-- Document macOS notarization + Windows signing secrets for `npm run dist`
-  (electron-builder, §12.1).
+## Operating notes
+
+- Deploys: merge to `main` → both `api` and `web` rebuild. Manual: `railway redeploy --service <name>`.
+- Logs: `railway logs --service api --lines 200`. Status: `railway deployment list --json`.
+- Desktop (§13 option A): cut founder builds with
+  `VITE_API_BASE_URL=https://api-production-9cb1.up.railway.app npm run dist` (see #29 / desktop docs).
+- The export job (`recall gmail-dump`, §6.8) stays in the operator's environment; the backend
+  stores no Gmail credentials.
+- Signing/notarization secrets for installers are documented with #29 (desktop), not here.
