@@ -30,6 +30,8 @@ htmlcov/
 # ── Node / frontend / desktop ──
 node_modules/
 dist/
+# electron-builder installer output (desktop/release/)
+desktop/release/
 dist-ssr/
 build/
 out/

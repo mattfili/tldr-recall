@@ -8,7 +8,9 @@
     "build": "tsc -p tsconfig.json",
     "test": "npm run build && node --test dist/validate-url.test.js",
     "start": "npm run build && electron .",
-    "dist": "npm run build && electron-builder"
+    "build:frontend": "npm --prefix ../frontend run build",
+    "dist": "npm run build:frontend && npm run build && electron-builder --mac dmg",
+    "dist:win": "npm run build:frontend && npm run build && electron-builder --win nsis --x64"
   },
   "devDependencies": {
     "electron": "^31.0.0",

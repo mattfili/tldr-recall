@@ -1,27 +1,41 @@
 appId: com.trillianthealth.recall
 productName: Recall
 
-# Unsigned local dev builds are allowed; signing/notarization is a later concern.
+# Unsigned local builds are the v1 baseline; signing/notarization steps are
+# documented (not executed) in desktop/README.md and infra/notes.md.
+# Default Electron icon is intentionally accepted for v1 (no buildResources
+# icons yet).
 directories:
   output: release
   buildResources: build
 
-# Ship the compiled main-process code plus the platform-agnostic frontend
-# build that the shell loads at runtime (../frontend/dist/index.html).
+# app.asar contains only the compiled main-process code.
 files:
   - dist/**/*
   # node --test suites compile alongside the app code; keep them out of the package.
   - "!dist/**/*.test.*"
   - package.json
+
+# The built web frontend is staged OUTSIDE app.asar as an extraResource:
+# `to` is relative to Contents/Resources (mac) / resources (win), so it lands
+# at <resources>/frontend/dist — which is where main.ts resolves it via
+# process.resourcesPath when app.isPackaged.
 extraResources:
   - from: ../frontend/dist
-    to: ../frontend/dist
+    to: frontend/dist
 
 mac:
   target:
     - dmg
   category: public.app-category.productivity
+  # No signing identity: produce an unsigned (ad-hoc) build with zero
+  # CSC_*/APPLE_* secrets. No `notarize` key -> notarization skipped.
+  identity: null
 
 win:
   target:
     - nsis
+  # Skip rcedit/signing of the win executable so the NSIS target cross-builds
+  # on macOS with no certificate and no winCodeSign tooling (keeps the default
+  # Electron icon — accepted for v1).
+  signAndEditExecutable: false

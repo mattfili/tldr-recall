@@ -50,6 +50,15 @@ DATABASE_URL="postgresql+psycopg://<public-conn>" uv run recall embed-backfill -
 Until the real corpus exists, the same recipe with `uv run recall seed` instead of
 `recall ingest --replace` gives the demo the seed dataset.
 
+## Desktop installers (§12.1, #29)
+
+`cd desktop && npm run dist` (mac .dmg) / `npm run dist:win` (NSIS .exe) → `desktop/release/`
+(gitignored). v1 builds are **unsigned** and require zero secrets. Signing/notarization env
+vars and config switches are documented in `desktop/README.md` — documented, not executed.
+Founder-demo builds bake the hosted API:
+`VITE_API_BASE_URL=https://api-production-9cb1.up.railway.app npm run dist`.
+Auto-update (electron-updater) is out of scope for v1.
+
 ## Operating notes
 
 - Deploys: merge to `main` → both `api` and `web` rebuild. Manual: `railway redeploy --service <name>`.
