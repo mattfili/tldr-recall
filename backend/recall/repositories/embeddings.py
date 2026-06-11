@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from recall.config import settings
 from recall.models import ContentEmbedding, EmbeddingKind
@@ -83,6 +83,12 @@ class EmbeddingRepository(Repository):
             )
             or 0
         )
+
+    def delete_all(self) -> int:
+        """Bulk-delete every embedding row (the --replace wipe). Returns the rowcount."""
+        result = self.session.execute(delete(ContentEmbedding))
+        self.session.flush()
+        return result.rowcount or 0
 
     def count(self) -> int:
         return self.session.scalar(select(func.count()).select_from(ContentEmbedding)) or 0

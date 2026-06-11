@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from recall.models import UserContentState
 from recall.repositories.base import Repository
@@ -63,6 +63,15 @@ class UserContentStateRepository(Repository):
             state.starred = starred
         self.session.flush()
         return state
+
+    def delete_all(self) -> int:
+        """Bulk-delete every per-reader Content state row (the --replace wipe).
+
+        Must run BEFORE the content wipe: the content_id FK has no ON DELETE CASCADE.
+        """
+        result = self.session.execute(delete(UserContentState))
+        self.session.flush()
+        return result.rowcount or 0
 
     def count(self) -> int:
         return self.session.scalar(select(func.count()).select_from(UserContentState)) or 0

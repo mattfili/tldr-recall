@@ -13,6 +13,7 @@ from recall.repositories.collections import CollectionRepository
 from recall.repositories.content import ContentRepository
 from recall.repositories.editions import EditionRepository
 from recall.repositories.embeddings import EmbeddingRepository
+from recall.repositories.ingest_runs import IngestRunRepository
 from recall.repositories.issues import IssueRepository
 from recall.repositories.search import SearchRepository
 from recall.repositories.url_resolutions import UrlResolutionRepository
@@ -27,6 +28,7 @@ __all__ = [
     "ContentRepository",
     "EditionRepository",
     "EmbeddingRepository",
+    "IngestRunRepository",
     "IssueRepository",
     "SearchRepository",
     "UrlResolutionRepository",
