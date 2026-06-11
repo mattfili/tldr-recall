@@ -4,11 +4,15 @@
 // every edition it appeared in ("TLDR · AI"), duplicate same-edition sightings dedupe to one
 // entry, and single-appearance Content renders exactly as before ("TLDR").
 
-import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { LibraryRow } from "./LibraryRow";
 import type { Appearance, Content, EditionRef } from "../types";
+
+// #24: mock the analytics seam so the article_open wiring can be asserted (no SDK/network).
+const analyticsMock = vi.hoisted(() => ({ capture: vi.fn() }));
+vi.mock("../analytics", () => ({ analytics: analyticsMock }));
 
 const TLDR: EditionRef = { key: "tldr", name: "TLDR" };
 const AI: EditionRef = { key: "ai", name: "AI" };
@@ -42,7 +46,11 @@ function content(appearances: Appearance[]): Content {
   };
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  analyticsMock.capture.mockClear();
+});
 
 // LibraryRow uses useToggleSave, so it needs a QueryClientProvider.
 function renderRow(it: Content) {
@@ -73,5 +81,23 @@ describe("<LibraryRow/> edition column (#27)", () => {
     expect(screen.getByText("TLDR · AI")).toBeTruthy();
     expect(screen.queryByText("TLDR · TLDR · AI")).toBeNull();
     expect(screen.queryByText("TLDR · AI · TLDR")).toBeNull();
+  });
+});
+
+describe("<LibraryRow/> analytics (#24)", () => {
+  it("opening the title fires article_open with source_view 'library'", () => {
+    vi.stubGlobal("open", vi.fn()); // platform.openExternal → window.open
+    renderRow(content([appearance(TLDR, "iss")]));
+    fireEvent.click(screen.getByRole("link", { name: "Headroom — agent context compression" }));
+
+    expect(analyticsMock.capture).toHaveBeenCalledTimes(1);
+    expect(analyticsMock.capture).toHaveBeenCalledWith("article_open", {
+      content_id: "11111111-1111-1111-1111-111111111111",
+      content_type: "repo",
+      domain: "github.com",
+      edition: "tldr",
+      category: "tools",
+      source_view: "library",
+    });
   });
 });

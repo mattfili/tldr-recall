@@ -13,6 +13,7 @@
 //    Content stays pixel-identical (today it shows no edition here at all).
 
 import { useState } from "react";
+import { analytics, type SourceView } from "../analytics";
 import { useToggleSave } from "../api/queries";
 import { editionNames } from "../format";
 import { platform } from "../platform";
@@ -42,7 +43,9 @@ function Actions({ it, size = 19 }: { it: Content; size?: number }) {
       <Star
         on={it.starred}
         size={size}
-        onClick={() => toggle.mutate({ id: it.id, next: !it.starred })}
+        onClick={() =>
+          toggle.mutate({ id: it.id, next: !it.starred, contentType: it.content_type })
+        }
       />
       <div style={{ position: "relative" }}>
         <button
@@ -72,12 +75,27 @@ function Actions({ it, size = 19 }: { it: Content; size?: number }) {
 export function ContentItem({
   it,
   showEditions = false,
+  sourceView = "editorial",
+  onOpen,
 }: {
   it: Content;
   showEditions?: boolean;
+  /** Which surface this row renders in (#24 analytics) — Editorial by default. */
+  sourceView?: SourceView;
+  /** Extra open hook (#24): SearchView uses it to fire result_open alongside article_open. */
+  onOpen?: () => void;
 }) {
   const openArticle = (e: React.MouseEvent) => {
     e.preventDefault();
+    analytics.capture("article_open", {
+      content_id: it.id,
+      content_type: it.content_type,
+      domain: it.domain,
+      edition: it.edition.key,
+      category: it.category?.slug ?? null,
+      source_view: sourceView,
+    });
+    onOpen?.();
     platform.openExternal(it.url);
   };
   const editions = showEditions ? editionNames(it) : [];

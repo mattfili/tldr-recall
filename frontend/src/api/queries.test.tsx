@@ -13,6 +13,11 @@ import { useToggleSave } from "./queries";
 import { queryKeys } from "./queries";
 import type { Content, Page } from "../types";
 
+// #24: mock the analytics seam — useToggleSave's onMutate is the single save_toggled
+// capture point for every Star call site.
+const analyticsMock = vi.hoisted(() => ({ capture: vi.fn() }));
+vi.mock("../analytics", () => ({ analytics: analyticsMock }));
+
 const CID = "91b6b997-fe16-4e09-b07c-4119ceaaf241";
 
 function content(starred: boolean): Content {
@@ -52,6 +57,7 @@ function starredInCache(qc: QueryClient, filters: Parameters<typeof queryKeys.li
 
 afterEach(() => {
   vi.restoreAllMocks();
+  analyticsMock.capture.mockClear();
 });
 
 const FILTERS = { types: [], editions: [], categories: [], starredOnly: false };
@@ -69,7 +75,7 @@ describe("useToggleSave (optimistic)", () => {
     );
     const { result } = renderHook(() => useToggleSave(), { wrapper });
 
-    result.current.mutate({ id: CID, next: true });
+    result.current.mutate({ id: CID, next: true, contentType: "article" });
     // optimistic: cache flips before the network settles
     await waitFor(() => expect(starredInCache(qc, FILTERS)).toBe(true));
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -88,9 +94,43 @@ describe("useToggleSave (optimistic)", () => {
     );
     const { result } = renderHook(() => useToggleSave(), { wrapper });
 
-    result.current.mutate({ id: CID, next: true });
+    result.current.mutate({ id: CID, next: true, contentType: "article" });
     await waitFor(() => expect(result.current.isError).toBe(true));
     // onError must restore the snapshot: starred is back to false (no phantom star).
     expect(starredInCache(qc, FILTERS)).toBe(false);
+  });
+
+  it("fires save_toggled 'on' / 'off' with the content_type (#24)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ content_id: CID, starred: true }), { status: 200 }),
+        ),
+      ),
+    );
+    const qc = makeClient();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useToggleSave(), { wrapper });
+
+    result.current.mutate({ id: CID, next: true, contentType: "repo" });
+    await waitFor(() =>
+      expect(analyticsMock.capture).toHaveBeenCalledWith("save_toggled", {
+        content_id: CID,
+        content_type: "repo",
+        state: "on",
+      }),
+    );
+
+    result.current.mutate({ id: CID, next: false, contentType: "repo" });
+    await waitFor(() =>
+      expect(analyticsMock.capture).toHaveBeenCalledWith("save_toggled", {
+        content_id: CID,
+        content_type: "repo",
+        state: "off",
+      }),
+    );
   });
 });

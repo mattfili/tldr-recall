@@ -6,6 +6,7 @@
 import { useCallback, useMemo, useState } from "react";
 import "./styles/recall.css";
 import { useCategories, useEditions } from "./api/queries";
+import { ConsentBanner } from "./components/ConsentBanner";
 import { EditorialView } from "./components/EditorialView";
 import { LibraryView } from "./components/LibraryView";
 import { SearchView } from "./components/SearchView";
@@ -163,6 +164,8 @@ export default function App() {
           />
         )}
       </main>
+      {/* Analytics consent (#24) — only exists when a PostHog key is configured. */}
+      <ConsentBanner />
     </div>
   );
 }

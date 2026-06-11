@@ -18,6 +18,7 @@
 // fixed-width columns don't overflow — gated by the `mob` prop (recall.css is never edited).
 
 import { useState } from "react";
+import { analytics } from "../analytics";
 import { useToggleSave } from "../api/queries";
 import { editionNames } from "../format";
 import { platform } from "../platform";
@@ -34,7 +35,9 @@ function RowActions({ it, size = 17 }: { it: Content; size?: number }) {
       <Star
         on={it.starred}
         size={size}
-        onClick={() => toggle.mutate({ id: it.id, next: !it.starred })}
+        onClick={() =>
+          toggle.mutate({ id: it.id, next: !it.starred, contentType: it.content_type })
+        }
       />
       <div style={{ position: "relative" }}>
         <button
@@ -75,6 +78,14 @@ export function LibraryRow({
 
   const openArticle = (e: React.MouseEvent) => {
     e.preventDefault();
+    analytics.capture("article_open", {
+      content_id: it.id,
+      content_type: it.content_type,
+      domain: it.domain,
+      edition: it.edition.key,
+      category: it.category?.slug ?? null,
+      source_view: "library",
+    });
     platform.openExternal(it.url);
   };
 
@@ -93,7 +104,9 @@ export function LibraryRow({
         <Star
           on={it.starred}
           size={16}
-          onClick={() => toggle.mutate({ id: it.id, next: !it.starred })}
+          onClick={() =>
+            toggle.mutate({ id: it.id, next: !it.starred, contentType: it.content_type })
+          }
         />
       </div>
       <span style={{ color: "var(--ink-4)", flex: "none", paddingTop: expanded ? 3 : 0 }}>

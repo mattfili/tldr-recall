@@ -8,6 +8,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { analytics } from "../analytics";
 import {
   deleteSave,
   getCategories,
@@ -191,13 +192,26 @@ function flipIssueDetail(
  * InfiniteData (every filter variant, matched by the ["library"] prefix), issue/latest
  * IssueDetail, and the single content(id). onError restores the snapshots; onSettled
  * invalidates so the authoritative membership (incl. the "Starred only" filter) re-fetches.
+ *
+ * `contentType` rides along only for the save_toggled analytics event (#24) — capturing in
+ * onMutate makes this hook the single seam point for every Star call site.
  */
+export interface ToggleSaveVars {
+  id: string;
+  next: boolean;
+  contentType: string;
+}
+
 export function useToggleSave() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, next }: { id: string; next: boolean }) =>
-      next ? putSave(id) : deleteSave(id),
-    onMutate: async ({ id, next }: { id: string; next: boolean }) => {
+    mutationFn: ({ id, next }: ToggleSaveVars) => (next ? putSave(id) : deleteSave(id)),
+    onMutate: async ({ id, next, contentType }: ToggleSaveVars) => {
+      analytics.capture("save_toggled", {
+        content_id: id,
+        content_type: contentType,
+        state: next ? "on" : "off",
+      });
       await Promise.all([
         qc.cancelQueries({ queryKey: ["library"] }),
         qc.cancelQueries({ queryKey: ["issue"] }),
