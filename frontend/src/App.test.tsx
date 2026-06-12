@@ -9,7 +9,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
-import type { Content, CategoryRef, Edition, IssueDetail, IssueSummary, Page } from "./types";
+import type {
+  Content,
+  CategoryRef,
+  Edition,
+  IssueDetail,
+  IssueSummary,
+  Page,
+  SearchResponse,
+} from "./types";
 
 const EDITIONS: Edition[] = [
   { key: "ai", name: "TLDR AI", unread_count: 1 },
@@ -117,6 +125,16 @@ const LIBRARY_PAGE: Page<Content> = {
   offset: 0,
 };
 
+// Minimal /search envelope for the #46 starred-payload integration test — the results header
+// (where the starred toggle lives) renders even at 0 hits.
+const EMPTY_SEARCH: SearchResponse = {
+  items: [],
+  total: 0,
+  limit: 12,
+  offset: 0,
+  detected: { types: [], negations: [] },
+};
+
 /** Per-render fixture overrides (#19 rail-dot tests vary the editions/issues payloads). */
 interface Fixtures {
   editions: Edition[];
@@ -135,6 +153,8 @@ function routeFetch(url: string, method: string, fixtures: Fixtures): unknown {
   }
   if (url.endsWith("/editions")) return fixtures.editions;
   if (url.endsWith("/categories")) return CATEGORIES;
+  if (url.includes("/search")) return EMPTY_SEARCH;
+  if (url.includes("/collections")) return [];
   if (url.includes("/library")) return LIBRARY_PAGE;
   if (url.includes("/issues?")) return fixtures.issues;
   if (url.includes("/issues/5e5e6fe1")) return TLDR_DETAIL;
@@ -162,7 +182,7 @@ afterEach(() => {
 function renderApp(overrides: Partial<Fixtures> = {}) {
   const fixtures: Fixtures = { editions: EDITIONS, issues: TLDR_ISSUES, ...overrides };
   vi.stubGlobal("IntersectionObserver", NoopIntersectionObserver);
-  const fetchFn = vi.fn((input: unknown, init?: { method?: string }) => {
+  const fetchFn = vi.fn((input: unknown, init?: { method?: string; body?: string }) => {
     const url = String(input);
     const method = init?.method ?? "GET";
     return Promise.resolve(
@@ -303,6 +323,32 @@ describe("<App/> Library render", () => {
     expect(screen.getByText("44")).toBeTruthy();
   });
 
+  it("library header starred toggle and FilterPanel chip share one state (#46)", async () => {
+    renderApp();
+
+    // Library view + the FilterPanel open at once → both "Starred only" controls render.
+    fireEvent.click(screen.getByRole("button", { name: "Library" }));
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { level: 1, name: "Library" })).toBeTruthy(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+    await waitFor(() =>
+      expect(screen.getAllByRole("button", { name: "Starred only" }).length).toBe(2),
+    );
+
+    const [a, b] = screen.getAllByRole("button", { name: "Starred only" });
+    expect(a.className).not.toContain("on");
+    expect(b.className).not.toContain("on");
+
+    // Click ONE control; BOTH must flip — they are projections of the same filters state.
+    fireEvent.click(a);
+    await waitFor(() => {
+      const [a2, b2] = screen.getAllByRole("button", { name: "Starred only" });
+      expect(a2.className).toContain("on");
+      expect(b2.className).toContain("on");
+    });
+  });
+
   it("toggling the filter icon opens the FilterPanel (Edition/Type/Category groups)", async () => {
     renderApp();
 
@@ -331,5 +377,32 @@ describe("<App/> analytics no-op default (#24)", () => {
     expect(screen.queryByRole("button", { name: "Decline" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Allow analytics" })).toBeNull();
     // routeFetch throws on any unexpected URL, so a stray analytics request would fail loudly.
+  });
+});
+
+describe("<App/> search starred toggle end-to-end (#46)", () => {
+  it("toggling 'Starred only' on the results header refetches with filters.starred=true", async () => {
+    const { fetchFn } = renderApp();
+
+    fireEvent.click(screen.getByRole("button", { name: "Smart search" }));
+    const input = await screen.findByLabelText("Search your library");
+    fireEvent.change(input, { target: { value: "agents" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(screen.getByText("0 results")).toBeTruthy());
+
+    // Empty-result choice (#44): the down arrow shows iff the results header is displayed,
+    // even at 0 hits.
+    await waitFor(() =>
+      expect(screen.getByTestId("search-icon").getAttribute("data-state")).toBe("results"),
+    );
+
+    const searchBodies = () =>
+      fetchFn.mock.calls
+        .filter(([input2]) => String(input2).includes("/search"))
+        .map(([, init]) => JSON.parse(String(init?.body)) as { filters: { starred: boolean } });
+    expect(searchBodies().at(-1)?.filters.starred).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Starred only" }));
+    await waitFor(() => expect(searchBodies().at(-1)?.filters.starred).toBe(true));
   });
 });

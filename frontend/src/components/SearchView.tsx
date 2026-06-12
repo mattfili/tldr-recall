@@ -15,6 +15,8 @@ import { useCollections, useSearch } from "../api/queries";
 import type { SearchFilters } from "../types";
 import { Ico } from "./atoms";
 import { ContentItem } from "./ContentItem";
+import { SearchSparkIcon } from "./SearchIcon";
+import type { SearchIconState } from "./SearchIcon";
 
 const PAGE_SIZE = 12;
 
@@ -33,11 +35,13 @@ export function SearchView({
   query,
   onSetQuery,
   filters,
+  onToggleStarred,
   mob = false,
 }: {
   query: string;
   onSetQuery: (q: string) => void;
   filters?: SearchFilters;
+  onToggleStarred?: () => void;
   mob?: boolean;
 }) {
   const [draft, setDraft] = useState(query);
@@ -49,7 +53,8 @@ export function SearchView({
   }, []);
 
   const searchQuery = useSearch(submitted, filters, PAGE_SIZE);
-  const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } = searchQuery;
+  const { data, isLoading, isFetching, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    searchQuery;
   const collectionsQuery = useCollections();
   const collections = useMemo(() => collectionsQuery.data ?? [], [collectionsQuery.data]);
 
@@ -107,6 +112,18 @@ export function SearchView({
   const hasSubmitted = submitted.trim().length > 0;
   const empty = hasSubmitted && !isLoading && items.length === 0;
 
+  // Icon state machine (#44) — derived ONLY from existing state. Precedence:
+  // searching > results > typing > idle. `!isFetchingNextPage` keeps pagination spins from
+  // rotating the icon; cached re-submits (#41) skip straight to "results" (isFetching false).
+  const iconState: SearchIconState =
+    hasSubmitted && isFetching && !isFetchingNextPage
+      ? "searching"
+      : hasSubmitted && data !== undefined
+        ? "results"
+        : draft.length > 0
+          ? "typing"
+          : "idle";
+
   return (
     <div style={{ maxWidth: 1180, margin: "0 auto", padding: mob ? "0 14px" : "0 28px" }}>
       <div style={{ display: "flex", justifyContent: "center" }}>
@@ -124,8 +141,8 @@ export function SearchView({
               boxShadow: "var(--shadow-md)",
             }}
           >
-            <span style={{ color: "var(--accent)" }}>
-              <Ico name="spark" s={21} />
+            <span style={{ color: "var(--accent)", display: "inline-flex", flex: "none" }}>
+              <SearchSparkIcon state={iconState} s={21} />
             </span>
             <input
               ref={inputRef}
@@ -249,8 +266,24 @@ export function SearchView({
                   {total} result{total === 1 ? "" : "s"}
                 </span>
                 <span style={{ fontSize: 13, color: "var(--ink-3)" }}>
-                  ranked by meaning across your library
+                  Search brought to you by Yoshua Bengio
                 </span>
+                {/* Starred-only quick toggle (#46) — flips the SAME lifted filters state the
+                    FilterPanel chip uses; the changed query key refetches automatically. */}
+                <button
+                  className={"rc-chip" + (filters?.starred ? " on" : "")}
+                  style={{
+                    fontSize: 12.5,
+                    padding: "6px 13px",
+                    marginLeft: "auto",
+                    alignSelf: "center",
+                  }}
+                  onClick={onToggleStarred}
+                  aria-label="Starred only"
+                  aria-pressed={!!filters?.starred}
+                >
+                  <Ico name="star" s={14} /> {!mob && "Starred"}
+                </button>
               </div>
 
               {empty ? (
