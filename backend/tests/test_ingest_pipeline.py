@@ -311,6 +311,16 @@ def test_unknown_edition_auto_creates_and_keeps_seeded_names(
         assert editions_repo.get_by_key("ai").name == seeded_ai_name
 
 
+def test_edition_display_name_uppercases_acronym_keys() -> None:
+    """Short keys are acronym brands: 'it' -> 'TLDR IT', never 'TLDR It' (operator-reported)."""
+    from recall.ingestion.pipeline import _edition_display_name
+
+    assert _edition_display_name("it") == "TLDR IT"
+    assert _edition_display_name("gtm") == "TLDR GTM"  # heuristic: ≤3 chars upper-cases
+    assert _edition_display_name("quantum") == "TLDR Quantum"
+    assert _edition_display_name("ai") == "TLDR AI"  # known names still win
+
+
 # ─────────────────────────── category resolve-or-create ───────────────────────────
 
 

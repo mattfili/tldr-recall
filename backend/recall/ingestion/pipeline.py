@@ -71,8 +71,9 @@ DEFAULT_CATEGORY_HUE = "var(--c-misc)"
 _TRACKING_PARAMS = frozenset({"fbclid", "gclid", "mc_cid", "mc_eid"})
 
 #: Known edition keys -> display names (matches the seed). Unknown keys derive
-#: ``"TLDR " + key.capitalize()`` ("webdev" -> "TLDR Webdev").
-_EDITION_NAMES = {"tldr": "TLDR", "ai": "TLDR AI", "founders": "TLDR Founders"}
+#: ``"TLDR " + key.capitalize()`` ("webdev" -> "TLDR Webdev"); short keys (≤3 chars) are
+#: acronym brands and upper-case instead ("it" -> "TLDR IT").
+_EDITION_NAMES = {"tldr": "TLDR", "ai": "TLDR AI", "founders": "TLDR Founders", "it": "TLDR IT"}
 
 #: Seeded-slug keyword table for category resolution (checked in order against the
 #: NORMALIZED label). Only applies when the slug actually exists in the DB.
@@ -180,7 +181,9 @@ class _CategoryResolver:
 
 
 def _edition_display_name(key: str) -> str:
-    return _EDITION_NAMES.get(key, f"TLDR {key.capitalize()}")
+    if key in _EDITION_NAMES:
+        return _EDITION_NAMES[key]
+    return f"TLDR {key.upper() if len(key) <= 3 else key.capitalize()}"
 
 
 # ── the wipe (--replace) ──────────────────────────────────────────────────────────────
