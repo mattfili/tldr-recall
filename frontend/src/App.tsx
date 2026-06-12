@@ -154,6 +154,7 @@ export default function App() {
             filters={filters}
             density={prefs.density}
             onSetDensity={setDensity}
+            onToggleStarred={toggleStarredOnly}
             onClearFilters={clearFilters}
             filterCount={filterCount}
             mob={mob}
@@ -164,6 +165,7 @@ export default function App() {
             query={searchQuery}
             onSetQuery={setSearchQuery}
             filters={searchFilters}
+            onToggleStarred={toggleStarredOnly}
             mob={mob}
           />
         )}

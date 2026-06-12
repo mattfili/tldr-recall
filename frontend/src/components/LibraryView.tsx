@@ -28,6 +28,7 @@ export function LibraryView({
   filters,
   density,
   onSetDensity,
+  onToggleStarred,
   onClearFilters,
   filterCount,
   mob = false,
@@ -35,6 +36,7 @@ export function LibraryView({
   filters: LibraryFilters;
   density: Density;
   onSetDensity: (d: Density) => void;
+  onToggleStarred?: () => void;
   onClearFilters: () => void;
   filterCount: number;
   mob?: boolean;
@@ -91,6 +93,17 @@ export function LibraryView({
           </div>
         </div>
         <div style={{ flex: 1 }} />
+        {/* starred-only quick toggle (#46) — flips the SAME lifted filters.starredOnly the
+            FilterPanel chip uses (one source of truth; both stay in sync by construction) */}
+        <button
+          className={"rc-chip" + (filters.starredOnly ? " on" : "")}
+          style={{ fontSize: 12.5, padding: "6px 13px" }}
+          onClick={onToggleStarred}
+          aria-label="Starred only"
+          aria-pressed={filters.starredOnly}
+        >
+          <Ico name="star" s={14} /> {!mob && "Starred"}
+        </button>
         {/* density toggle — persists via usePrefs (localStorage), not a query param */}
         <div
           style={{

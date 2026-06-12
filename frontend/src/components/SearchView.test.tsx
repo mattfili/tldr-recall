@@ -16,7 +16,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SearchView } from "./SearchView";
-import type { CollectionRef, SearchResponse } from "../types";
+import type { CollectionRef, SearchFilters, SearchResponse } from "../types";
 
 // #24: mock the analytics seam (NOT posthog) so the wiring tests can assert captures.
 // The mock is module-wide; the pre-existing tests simply never look at it.
@@ -146,23 +146,68 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   analyticsMock.capture.mockClear();
+  // stubAnimate() patches the prototype directly (jsdom never defines it) — remove it again.
+  delete (Element.prototype as { animate?: unknown }).animate;
 });
 
-function renderSearch() {
+function renderSearch(props: Partial<Parameters<typeof SearchView>[0]> = {}) {
   vi.stubGlobal("IntersectionObserver", NoopIntersectionObserver);
-  vi.stubGlobal(
-    "fetch",
-    vi.fn((input: unknown) =>
-      Promise.resolve(new Response(JSON.stringify(routeFetch(String(input))), { status: 200 })),
-    ),
-  );
+  const fetchFn = vi.fn((input: unknown, init?: { body?: string }) => {
+    void init; // typed so tests can read the recorded POST body off mock.calls
+    return Promise.resolve(
+      new Response(JSON.stringify(routeFetch(String(input))), { status: 200 }),
+    );
+  });
+  vi.stubGlobal("fetch", fetchFn);
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   let query = "";
-  return render(
+  render(
     <QueryClientProvider client={qc}>
-      <SearchView query={query} onSetQuery={(q) => (query = q)} />
+      <SearchView query={query} onSetQuery={(q) => (query = q)} {...props} />
     </QueryClientProvider>,
   );
+  return { fetchFn };
+}
+
+/** renderSearch with a DEFERRED /search response — lets tests observe the in-flight state. */
+function renderSearchDeferred() {
+  vi.stubGlobal("IntersectionObserver", NoopIntersectionObserver);
+  const pending: ((r: SearchResponse) => void)[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: unknown) => {
+      const url = String(input);
+      if (url.includes("/search"))
+        return new Promise<Response>((res) => {
+          pending.push((r) => res(new Response(JSON.stringify(r), { status: 200 })));
+        });
+      if (url.includes("/collections"))
+        return Promise.resolve(new Response(JSON.stringify(COLLECTIONS), { status: 200 }));
+      throw new Error(`unexpected fetch: ${url}`);
+    }),
+  );
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={qc}>
+      <SearchView query="" onSetQuery={() => {}} />
+    </QueryClientProvider>,
+  );
+  return { resolveSearch: (r: SearchResponse) => pending.shift()?.(r) };
+}
+
+/** The #44 icon wrapper's current machine state. */
+function iconState(): string | null {
+  return screen.getByTestId("search-icon").getAttribute("data-state");
+}
+
+/** Install a WAAPI stub (jsdom has none) so the pulse/rotation calls are observable. */
+function stubAnimate() {
+  const spy = vi.fn((keyframes?: unknown) => {
+    void keyframes; // typed so tests can inspect the recorded keyframes off mock.calls
+    return { cancel: vi.fn(), finish: vi.fn() };
+  });
+  Element.prototype.animate = spy as unknown as typeof Element.prototype.animate;
+  return spy;
 }
 
 describe("<SearchView/>", () => {
@@ -273,5 +318,116 @@ describe("<SearchView/> analytics (#24)", () => {
       "result_open",
       expect.objectContaining({ rank: 1 }),
     );
+  });
+});
+
+describe("<SearchView/> icon state machine (#44)", () => {
+  it("walks idle → typing → searching → results, and back to idle on clear", async () => {
+    const { resolveSearch } = renderSearchDeferred();
+    expect(iconState()).toBe("idle");
+
+    const input = screen.getByLabelText("Search your library");
+    fireEvent.change(input, { target: { value: "agents" } });
+    expect(iconState()).toBe("typing");
+
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(iconState()).toBe("searching"));
+
+    resolveSearch(SEARCH_RESPONSE);
+    await waitFor(() => expect(iconState()).toBe("results"));
+
+    fireEvent.click(screen.getByLabelText("clear"));
+    expect(iconState()).toBe("idle");
+  });
+
+  it("pulses ONCE per empty→typing transition (not per keystroke), and again after clear", () => {
+    const spy = stubAnimate();
+    renderSearch();
+    const input = screen.getByLabelText("Search your library");
+
+    fireEvent.change(input, { target: { value: "a" } });
+    fireEvent.change(input, { target: { value: "ag" } });
+    fireEvent.change(input, { target: { value: "age" } });
+    expect(spy).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByLabelText("clear"));
+    fireEvent.change(input, { target: { value: "b" } });
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it("rotates while the search is in flight and cancels the spin on settle", async () => {
+    const spy = stubAnimate();
+    const { resolveSearch } = renderSearchDeferred();
+    const input = screen.getByLabelText("Search your library");
+    fireEvent.change(input, { target: { value: "agents" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(iconState()).toBe("searching"));
+
+    const rotateIdx = spy.mock.calls.findIndex((args) =>
+      JSON.stringify(args[0] ?? "").includes("rotate"),
+    );
+    expect(rotateIdx).toBeGreaterThanOrEqual(0);
+    const spin = spy.mock.results[rotateIdx].value as { cancel: ReturnType<typeof vi.fn> };
+
+    resolveSearch(SEARCH_RESPONSE);
+    await waitFor(() => expect(iconState()).toBe("results"));
+    expect(spin.cancel).toHaveBeenCalled();
+  });
+
+  it("honors prefers-reduced-motion: no WAAPI animations at all", () => {
+    const spy = stubAnimate();
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: true })),
+    );
+    renderSearch();
+    const input = screen.getByLabelText("Search your library");
+    fireEvent.change(input, { target: { value: "agents" } });
+    expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe("<SearchView/> starred toggle + caption (#46)", () => {
+  const STARRED_FILTERS: SearchFilters = {
+    types: [],
+    editions: [],
+    categories: [],
+    starred: true,
+  };
+
+  it("renders the exact Bengio caption (old caption gone) with the toggle pushed far right", async () => {
+    renderSearch();
+    fireEvent.click(screen.getByRole("button", { name: "github repos about agents" }));
+    await waitFor(() => expect(screen.getByText("2 results")).toBeTruthy());
+
+    expect(screen.getByText("Search brought to you by Yoshua Bengio")).toBeTruthy();
+    expect(screen.queryByText(/ranked by meaning across your library/)).toBeNull();
+
+    const toggle = screen.getByRole("button", { name: "Starred only" });
+    expect(toggle.style.marginLeft).toBe("auto");
+  });
+
+  it("starred toggle is an rc-chip reflecting filters.starred and calls onToggleStarred", async () => {
+    const onToggleStarred = vi.fn();
+    renderSearch({ filters: STARRED_FILTERS, onToggleStarred });
+    fireEvent.click(screen.getByRole("button", { name: "github repos about agents" }));
+    await waitFor(() => expect(screen.getByText("2 results")).toBeTruthy());
+
+    const toggle = screen.getByRole("button", { name: "Starred only" });
+    expect(toggle.className).toBe("rc-chip on");
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(toggle);
+    expect(onToggleStarred).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends filters.starred=true in the POST /search payload when the filter is on", async () => {
+    const { fetchFn } = renderSearch({ filters: STARRED_FILTERS });
+    fireEvent.click(screen.getByRole("button", { name: "github repos about agents" }));
+    await waitFor(() => expect(screen.getByText("2 results")).toBeTruthy());
+
+    const searchCall = fetchFn.mock.calls.find(([input]) => String(input).includes("/search"));
+    expect(searchCall).toBeTruthy();
+    const body = JSON.parse(String(searchCall?.[1]?.body));
+    expect(body.filters.starred).toBe(true);
   });
 });
