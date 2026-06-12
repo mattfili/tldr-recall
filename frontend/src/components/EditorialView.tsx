@@ -16,7 +16,7 @@ import { ContentItem } from "./ContentItem";
 import { IssueNav } from "./IssueNav";
 import { SectionHead } from "./SectionHead";
 
-// Best-effort catch-up unread marker (ADR-0002). Inline-styled so recall.css stays untouched.
+// Catch-up unread marker (ADR-0002). Inline-styled so recall.css stays untouched.
 function UnreadDot({ size = 8 }: { size?: number }) {
   return (
     <span
@@ -82,11 +82,10 @@ export function EditorialView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSummary?.id]);
 
-  // Best-effort unread markers. The current issue's summary read_state drives the issue-nav
-  // dot; the rail dot is best-effort from THIS edition's loaded issues (issues for other
-  // editions are not loaded until selected).
+  // Unread markers. The current issue's summary read_state drives the issue-nav dot; the
+  // rail dots come from each edition's unread_count on GET /editions (#19) — every edition,
+  // not just the selected one — refreshed when useMarkIssueRead settles.
   const currentUnread = currentSummary?.read_state === "unread";
-  const editionHasUnread = issues.some((i) => i.read_state === "unread");
 
   // IssueNav semantics: "next" = newer (toward index 0), "prev" = older.
   const canNewer = safeIdx > 0;
@@ -120,8 +119,8 @@ export function EditorialView({
           >
             {railEditions.map((e) => {
               const on = edition === e.key;
-              // Best-effort: rail dot only known for the currently-loaded (selected) edition.
-              const showDot = on && editionHasUnread;
+              // Cross-edition glance (#19): dot on every edition with unread issues.
+              const showDot = e.unread_count > 0;
               return (
                 <button
                   key={e.key}
@@ -159,8 +158,8 @@ export function EditorialView({
           >
             {railEditions.map((e) => {
               const on = edition === e.key;
-              // Best-effort: rail dot only known for the currently-loaded (selected) edition.
-              const showDot = on && editionHasUnread;
+              // Cross-edition glance (#19): dot on every edition with unread issues.
+              const showDot = e.unread_count > 0;
               return (
                 <button
                   key={e.key}

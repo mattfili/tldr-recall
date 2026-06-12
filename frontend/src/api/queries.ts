@@ -255,7 +255,8 @@ export function useToggleSave() {
 /**
  * useMarkIssueRead — fire on issue view (mark-on-view, ADR-0002). PUT /issues/{id}/read is
  * idempotent; on settle we invalidate the issues query so IssueSummary.read_state + the nav
- * unread markers refresh.
+ * unread markers refresh, and the editions query so the rail's per-edition unread_count
+ * dots update as the reader reads (#19).
  */
 export function useMarkIssueRead() {
   const qc = useQueryClient();
@@ -263,6 +264,7 @@ export function useMarkIssueRead() {
     mutationFn: (id: string) => putIssueRead(id),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ["issues"] });
+      qc.invalidateQueries({ queryKey: queryKeys.editions });
     },
   });
 }
