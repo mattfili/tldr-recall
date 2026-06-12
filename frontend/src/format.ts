@@ -53,6 +53,22 @@ export function formatRecency(iso: string, now: Date = new Date()): string {
 }
 
 /**
+ * The Content's LATEST release date — the max issue published_at across its
+ * appearances (#51). ADR-0001: the flat `issue` is the PRIMARY (earliest)
+ * appearance, so a recycled story's primary date understates how recently it
+ * ran; the Library date column wants the most recent sighting. Falls back to
+ * the primary issue's date when appearances[] is empty (defensive only —
+ * every Content has at least one appearance).
+ */
+export function latestPublishedAt(c: Pick<Content, "issue" | "appearances">): string {
+  let latest = c.issue.published_at;
+  for (const a of c.appearances) {
+    if (a.issue.published_at > latest) latest = a.issue.published_at; // ISO dates sort lexically
+  }
+  return latest;
+}
+
+/**
  * Every edition a Content appeared in, deduped by edition key, PRIMARY edition
  * first (ADR-0001 — the flat `edition` stays the displayed appearance), then the
  * remaining editions in stable appearances[] order. A Content can appear twice in

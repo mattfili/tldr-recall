@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { editionNames, formatMastheadDate, formatRecency } from "./format";
+import { editionNames, formatMastheadDate, formatRecency, latestPublishedAt } from "./format";
 import type { Appearance, EditionRef } from "./types";
 
 describe("formatMastheadDate", () => {
@@ -91,5 +91,33 @@ describe("editionNames", () => {
   it("returns just the primary edition for single-appearance Content", () => {
     const names = editionNames({ edition: TLDR, appearances: [appearance(TLDR, "iss-a")] });
     expect(names).toEqual(["TLDR"]);
+  });
+});
+
+describe("latestPublishedAt (#51)", () => {
+  const c = (primary: string, dates: string[]) => ({
+    issue: { id: "i", issue_number: null, published_at: primary },
+    appearances: dates.map((d, n) => ({
+      issue: { id: `i${n}`, issue_number: null, published_at: d },
+      edition: { key: "tldr", name: "TLDR" },
+      category: null,
+      position: n,
+    })),
+  });
+
+  it("returns the max appearance date for a recycled story", () => {
+    expect(latestPublishedAt(c("2026-06-02", ["2026-06-02", "2026-06-09"]))).toBe("2026-06-09");
+  });
+
+  it("returns the primary date for a single appearance", () => {
+    expect(latestPublishedAt(c("2026-06-02", ["2026-06-02"]))).toBe("2026-06-02");
+  });
+
+  it("compares ISO dates correctly across a year boundary (lexical order)", () => {
+    expect(latestPublishedAt(c("2025-12-30", ["2025-12-30", "2026-01-02"]))).toBe("2026-01-02");
+  });
+
+  it("falls back to the primary date when appearances is empty (defensive)", () => {
+    expect(latestPublishedAt(c("2026-06-02", []))).toBe("2026-06-02");
   });
 });

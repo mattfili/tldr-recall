@@ -17,13 +17,24 @@ vi.mock("../analytics", () => ({ analytics: analyticsMock }));
 const TLDR: EditionRef = { key: "tldr", name: "TLDR" };
 const AI: EditionRef = { key: "ai", name: "AI" };
 
-function appearance(edition: EditionRef, issueId: string): Appearance {
+function appearance(
+  edition: EditionRef,
+  issueId: string,
+  published_at = "2026-06-02",
+): Appearance {
   return {
-    issue: { id: issueId, issue_number: "#1", published_at: "2026-06-02" },
+    issue: { id: issueId, issue_number: "#1", published_at },
     edition,
     category: { slug: "tools", label: "Tools", hue: "var(--c-tools)" },
     position: 0,
   };
+}
+
+/** ISO date `n` days before today — keeps formatRecency assertions clock-safe. */
+function daysAgo(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 // Mock Content mirroring types.ts (same shape idiom as SearchView.test.tsx's SEARCH_RESPONSE).
@@ -81,6 +92,23 @@ describe("<LibraryRow/> edition column (#27)", () => {
     expect(screen.getByText("TLDR · AI")).toBeTruthy();
     expect(screen.queryByText("TLDR · TLDR · AI")).toBeNull();
     expect(screen.queryByText("TLDR · AI · TLDR")).toBeNull();
+  });
+});
+
+describe("<LibraryRow/> latest-release-date column (#51)", () => {
+  it("shows the MOST RECENT appearance's date, not the primary (earliest) one", () => {
+    // Primary (flat issue) is 10d old; a later AI sighting is 3d old -> "3d ago" wins.
+    const it_ = content([appearance(TLDR, "iss", daysAgo(10)), appearance(AI, "iss-ai", daysAgo(3))]);
+    it_.issue = { id: "iss", issue_number: "#1", published_at: daysAgo(10) };
+    renderRow(it_);
+    expect(screen.getByTestId("latest-date").textContent).toBe("3d ago");
+  });
+
+  it("single-appearance Content shows its one date", () => {
+    const it_ = content([appearance(TLDR, "iss", daysAgo(2))]);
+    it_.issue = { id: "iss", issue_number: "#1", published_at: daysAgo(2) };
+    renderRow(it_);
+    expect(screen.getByTestId("latest-date").textContent).toBe("2d ago");
   });
 });
 
