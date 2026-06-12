@@ -52,10 +52,15 @@ def _unread_counts() -> dict[str, int]:
     return {e["key"]: e["unread_count"] for e in client.get("/editions").json()}
 
 
+def _latest_unread() -> dict[str, bool]:
+    return {e["key"]: e["latest_unread"] for e in client.get("/editions").json()}
+
+
 def test_editions_unread_count_shape_and_get_is_side_effect_free() -> None:
     body = client.get("/editions").json()
     for e in body:
-        assert set(e.keys()) == {"key", "name", "unread_count"}
+        assert set(e.keys()) == {"key", "name", "unread_count", "latest_unread"}
+        assert isinstance(e["latest_unread"], bool)
         assert isinstance(e["unread_count"], int)
         assert e["unread_count"] >= 0
     # Pure GET: a second call reports the identical counts (no mark-on-view side effects).
@@ -67,12 +72,15 @@ def test_unread_counts_start_at_one_and_drop_on_mark_read() -> None:
     try:
         # Fresh seed: 3 editions x 1 issue each, no user_issue_state rows -> all unread.
         assert _unread_counts() == {"tldr": 1, "ai": 1, "founders": 1}
+        assert _latest_unread() == {"tldr": True, "ai": True, "founders": True}
 
         # Mark the tldr issue read: tldr drops to 0, the other editions are untouched.
+        # The seed has ONE issue per edition, so the latest-issue flag flips too (#49).
         issue_id = client.get("/issues?edition=tldr").json()["items"][0]["id"]
         resp = client.put(f"/issues/{issue_id}/read")
         assert resp.status_code == 200
         assert _unread_counts() == {"tldr": 0, "ai": 1, "founders": 1}
+        assert _latest_unread() == {"tldr": False, "ai": True, "founders": True}
 
         # Idempotent re-mark: counts unchanged.
         assert client.put(f"/issues/{issue_id}/read").status_code == 200

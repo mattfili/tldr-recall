@@ -25,35 +25,56 @@ class EditionRepository(Repository):
             ).all()
         )
 
-    def list_with_unread_counts(self, *, user_id: uuid.UUID) -> list[tuple[Edition, int]]:
-        """All editions with the reader's unread-issue count, in ``list_all`` order (#19).
+    def list_with_unread_counts(
+        self, *, user_id: uuid.UUID
+    ) -> list[tuple[Edition, int, bool]]:
+        """All editions with the reader's unread-issue count AND whether the edition's
+        LATEST issue is unread, in ``list_all`` order (#19, #49).
 
-        ONE batched query (no N+1): editions LEFT JOIN issues LEFT JOIN the reader's
-        ``user_issue_state`` rows (the ``user_id`` predicate lives IN the join condition so
-        editions/issues without rows survive the outer join), GROUP BY edition, counting
-        issues with no state row OR ``read_state='unread'`` (ADR-0002: a missing row means
-        the reader has never viewed the issue). ``func.count(Issue.id)`` keeps an edition
-        with zero issues at 0 — its NULL Issue row matches the IS-NULL filter but a NULL
-        argument is never counted.
+        TWO batched queries (still no N+1, regardless of edition count):
+
+        1. editions LEFT JOIN issues LEFT JOIN the reader's ``user_issue_state`` rows
+           (the ``user_id`` predicate lives IN the join condition so editions/issues
+           without rows survive the outer join), GROUP BY edition, counting issues with
+           no state row OR ``read_state='unread'`` (ADR-0002: a missing row means the
+           reader has never viewed the issue). ``func.count(Issue.id)`` keeps an edition
+           with zero issues at 0.
+        2. ``DISTINCT ON (edition_id) … ORDER BY published_at DESC`` over issues with the
+           same state join — the read-state of each edition's newest issue. This is what
+           the rail dot keys off (#49): a historical backlog must not pin the dot forever;
+           "unread" at a glance means "the latest issue is new to you". Editions with no
+           issues report False.
         """
-        unread = func.count(Issue.id).filter(
-            or_(UserIssueState.id.is_(None), UserIssueState.read_state == ReadState.unread)
+        is_unread = or_(
+            UserIssueState.id.is_(None), UserIssueState.read_state == ReadState.unread
         )
-        stmt = (
+        state_join = and_(
+            UserIssueState.issue_id == Issue.id,
+            UserIssueState.user_id == user_id,
+        )
+
+        unread = func.count(Issue.id).filter(is_unread)
+        counts_stmt = (
             select(Edition, unread.label("unread_count"))
             .select_from(Edition)
             .outerjoin(Issue, Issue.edition_id == Edition.id)
-            .outerjoin(
-                UserIssueState,
-                and_(
-                    UserIssueState.issue_id == Issue.id,
-                    UserIssueState.user_id == user_id,
-                ),
-            )
+            .outerjoin(UserIssueState, state_join)
             .group_by(Edition.id)
             .order_by(Edition.created_at, Edition.key)
         )
-        return [(edition, count) for edition, count in self.session.execute(stmt).all()]
+        counts = self.session.execute(counts_stmt).all()
+
+        latest_stmt = (
+            select(Issue.edition_id, is_unread.label("latest_unread"))
+            .distinct(Issue.edition_id)  # Postgres DISTINCT ON
+            .outerjoin(UserIssueState, state_join)
+            .order_by(Issue.edition_id, Issue.published_at.desc(), Issue.id.desc())
+        )
+        latest = {edition_id: flag for edition_id, flag in self.session.execute(latest_stmt)}
+
+        return [
+            (edition, count, bool(latest.get(edition.id, False))) for edition, count in counts
+        ]
 
     def upsert(self, *, key: str, name: str, sender_email: str | None = None) -> Edition:
         """Create the edition, or update its name/sender_email if it already exists."""

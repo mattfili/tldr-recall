@@ -83,7 +83,8 @@ export function EditorialView({
   }, [currentSummary?.id]);
 
   // Unread markers. The current issue's summary read_state drives the issue-nav dot; the
-  // rail dots come from each edition's unread_count on GET /editions (#19) — every edition,
+  // rail dots come from each edition's latest_unread on GET /editions (#19/#49) — the dot
+  // means "the NEWEST issue is unread", so a historical backlog never pins it — every edition,
   // not just the selected one — refreshed when useMarkIssueRead settles.
   const currentUnread = currentSummary?.read_state === "unread";
 
@@ -120,7 +121,7 @@ export function EditorialView({
             {railEditions.map((e) => {
               const on = edition === e.key;
               // Cross-edition glance (#19): dot on every edition with unread issues.
-              const showDot = e.unread_count > 0;
+              const showDot = e.latest_unread;
               return (
                 <button
                   key={e.key}
@@ -159,7 +160,7 @@ export function EditorialView({
             {railEditions.map((e) => {
               const on = edition === e.key;
               // Cross-edition glance (#19): dot on every edition with unread issues.
-              const showDot = e.unread_count > 0;
+              const showDot = e.latest_unread;
               return (
                 <button
                   key={e.key}

@@ -34,11 +34,11 @@ afterEach(() => {
 });
 
 describe("getEditions", () => {
-  it("parses [{key,name,unread_count}] in backend order", async () => {
+  it("parses [{key,name,unread_count,latest_unread}] in backend order", async () => {
     const payload: Edition[] = [
-      { key: "ai", name: "TLDR AI", unread_count: 1 },
-      { key: "founders", name: "TLDR Founders", unread_count: 0 },
-      { key: "tldr", name: "TLDR", unread_count: 2 },
+      { key: "ai", name: "TLDR AI", unread_count: 1, latest_unread: true },
+      { key: "founders", name: "TLDR Founders", unread_count: 0, latest_unread: false },
+      { key: "tldr", name: "TLDR", unread_count: 2, latest_unread: true },
     ];
     const fetchFn = mockJson(payload);
     const editions = await getEditions();

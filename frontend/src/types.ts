@@ -29,6 +29,8 @@ export interface EditionRef {
  */
 export interface Edition extends EditionRef {
   unread_count: number;
+  /** Whether the edition's NEWEST issue is unread — the rail dot keys off this (#49). */
+  latest_unread: boolean;
 }
 
 /**

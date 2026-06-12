@@ -136,31 +136,12 @@ describe("<SharePop/> (#39)", () => {
     );
   });
 
-  it("iMessage uses the documented copy fallback and fires target 'imessage'", () => {
-    const writeText = installClipboard();
+  it("offers exactly two targets: Email and Copy link (iMessage/Slack removed)", () => {
     renderPop();
 
-    fireEvent.click(screen.getByRole("button", { name: "iMessage" }));
-
-    expect(writeText).toHaveBeenCalledExactlyOnceWith(IT.url);
-    expect(screen.getByText("Copied!")).toBeTruthy();
-    expect(analyticsMock.capture).toHaveBeenCalledExactlyOnceWith(
-      "article_shared",
-      sharedProps("imessage"),
-    );
-  });
-
-  it("Slack uses the documented copy fallback and fires target 'slack'", () => {
-    const writeText = installClipboard();
-    renderPop();
-
-    fireEvent.click(screen.getByRole("button", { name: "Slack" }));
-
-    expect(writeText).toHaveBeenCalledExactlyOnceWith(IT.url);
-    expect(screen.getByText("Copied!")).toBeTruthy();
-    expect(analyticsMock.capture).toHaveBeenCalledExactlyOnceWith(
-      "article_shared",
-      sharedProps("slack"),
-    );
+    const buttons = screen.getAllByRole("button");
+    expect(buttons.map((b) => b.textContent)).toEqual(["Email", "Copy link"]);
+    expect(screen.queryByText("iMessage")).toBeNull();
+    expect(screen.queryByText("Slack")).toBeNull();
   });
 });
