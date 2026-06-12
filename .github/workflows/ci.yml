@@ -87,3 +87,35 @@ jobs:
       - name: Test (vitest)
         working-directory: frontend
         run: npm test
+
+  mobile:
+    runs-on: ubuntu-latest
+    env:
+      EXPO_NO_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      # tsc realpaths the web-src symlink, so type resolution can reach
+      # frontend/node_modules — install both trees for deterministic checks.
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: mobile
+        run: npx tsc --noEmit
+
+      - name: Export bundles (native + DOM)
+        # Proves the whole cross-package graph compiles: the web-src symlink,
+        # the env alias, dedupe, and the 'use dom' web bundle.
+        working-directory: mobile
+        run: npx expo export --platform ios
