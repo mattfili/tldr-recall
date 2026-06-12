@@ -7,5 +7,10 @@ export const webPlatform: Platform = {
   openExternal(url: string): void {
     window.open(url, "_blank", "noopener,noreferrer");
   },
+  // #39 share-by-email: navigating to a mailto: URL hands off to the OS mail
+  // client without unloading the SPA. Always present on web.
+  openMailto(url: string): void {
+    window.location.assign(url);
+  },
   isDesktop: false,
 };

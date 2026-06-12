@@ -1,7 +1,7 @@
 // Typed analytics event taxonomy (spec §12.4 — "define once, typed"; issue #24).
-// Exactly the four highest-value events (grilled 2026-06-10). "Engagement" here is
-// analytics-only by definition (CONTEXT.md, ADR-0002) — nothing in this module ever
-// feeds user-facing state.
+// The four highest-value events (grilled 2026-06-10) plus article_shared (#39).
+// "Engagement" here is analytics-only by definition (CONTEXT.md, ADR-0002) — nothing
+// in this module ever feeds user-facing state.
 //
 // Privacy contract (spec §12.4): properties carry NO PII — content ids, types, domains,
 // edition/category keys, and (for the single-user demo) raw query text only.
@@ -10,7 +10,7 @@
 export type SourceView = "editorial" | "library" | "search";
 
 /**
- * The four events and their exact property shapes. A `type` (not `interface`) so each
+ * The five events and their exact property shapes. A `type` (not `interface`) so each
  * payload is assignable to `Record<string, unknown>` at the sink boundary.
  */
 export type AnalyticsEvents = {
@@ -41,6 +41,20 @@ export type AnalyticsEvents = {
     content_id: string;
     content_type: string;
     state: "on" | "off";
+  };
+  /**
+   * An article was shared via the share popover (#39). edition/category are the
+   * PRIMARY appearance's; `target` is the share affordance used (iMessage/Slack
+   * resolve to a copy fallback at the UI level but keep their own target value).
+   */
+  article_shared: {
+    content_id: string;
+    content_type: string;
+    domain: string;
+    edition: string;
+    category: string | null;
+    source_view: SourceView;
+    target: "copy_link" | "email" | "imessage" | "slack";
   };
 };
 

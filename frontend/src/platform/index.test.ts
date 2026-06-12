@@ -68,3 +68,34 @@ describe("platform selection (§10.3)", () => {
     expect(open).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("openMailto detection (#39 share-by-email)", () => {
+  it("exposes openMailto when the bridge has the system surface", async () => {
+    const system = { openMailto: vi.fn() };
+    const bridge: RecallBridge = { isDesktop: true, browser: makeBrowserMock(), system };
+    vi.stubGlobal("recall", bridge);
+
+    const platform = await importPlatform();
+    expect(platform.openMailto).toBeDefined();
+
+    platform.openMailto?.("mailto:?subject=Hi&body=https%3A%2F%2Fx");
+    expect(system.openMailto).toHaveBeenCalledExactlyOnceWith(
+      "mailto:?subject=Hi&body=https%3A%2F%2Fx",
+    );
+  });
+
+  it("leaves openMailto undefined on a desktop bridge WITHOUT the system surface (stale shell)", async () => {
+    const bridge: RecallBridge = { isDesktop: true, browser: makeBrowserMock() };
+    vi.stubGlobal("recall", bridge);
+
+    const platform = await importPlatform();
+    expect(platform.isDesktop).toBe(true); // browser surface present — Electron impl selected
+    expect(platform.openMailto).toBeUndefined(); // SharePop must use the copy fallback
+  });
+
+  it("always exposes openMailto on web", async () => {
+    const platform = await importPlatform();
+    expect(platform.isDesktop).toBe(false);
+    expect(typeof platform.openMailto).toBe("function");
+  });
+});

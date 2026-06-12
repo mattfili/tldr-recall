@@ -12,6 +12,12 @@ import { webPlatform } from "./web";
 export interface Platform {
   /** Open an external article URL (new tab on web, in-app browser on desktop). */
   openExternal(url: string): void;
+  /**
+   * Open a mailto: draft via the system mail client (#39 share-by-email).
+   * Always present on web; on desktop only when the shell exposes the system
+   * bridge surface. `undefined` ⇒ the caller MUST use the copy fallback.
+   */
+  openMailto?: (url: string) => void;
   /** True inside the Electron renderer. */
   isDesktop: boolean;
 }
@@ -37,11 +43,18 @@ export interface RecallBrowserBridge {
   onState(cb: (state: BrowserState) => void): () => void;
 }
 
+/** System-open surface (#39): mailto: drafts via shell.openExternal — never the in-app view. */
+export interface RecallSystemBridge {
+  openMailto(url: string): void | Promise<void>;
+}
+
 /** Shape of the preload bridge Electron exposes on window (desktop/src/preload.ts). */
 export interface RecallBridge {
   isDesktop: boolean;
   /** Absent in stale M0 shells — detection falls back to web behavior then. */
   browser?: RecallBrowserBridge;
+  /** Absent in shells predating #39 — platform.openMailto stays undefined then. */
+  system?: RecallSystemBridge;
 }
 
 declare global {
@@ -54,7 +67,7 @@ function detectPlatform(): Platform {
   const bridge = typeof window !== "undefined" ? window.recall : undefined;
   // Require the browser surface, not just the flag: an old shell without the
   // in-app browser must keep getting working links via window.open.
-  return bridge?.browser ? makeElectronPlatform(bridge.browser) : webPlatform;
+  return bridge?.browser ? makeElectronPlatform(bridge.browser, bridge.system) : webPlatform;
 }
 
 export const platform: Platform = detectPlatform();

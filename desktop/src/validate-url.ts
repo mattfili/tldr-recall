@@ -24,6 +24,26 @@ export function validateExternalUrl(raw: unknown): string | null {
   return url.toString();
 }
 
+/**
+ * Validate + normalize a URL destined for the SYSTEM handler ONLY (#39 share-
+ * by-email: shell.openExternal, never the in-app WebContentsView).
+ *
+ * ONLY mailto: is allowed — a deliberately separate, tighter gate so the
+ * http(s)-only posture of validateExternalUrl (above) is untouched. Everything
+ * else (http, https, javascript:, file:, garbage, non-strings) returns null.
+ */
+export function validateMailtoUrl(raw: unknown): string | null {
+  if (typeof raw !== "string" || raw.trim() === "") return null;
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "mailto:") return null;
+  return url.toString();
+}
+
 /** Display domain for the chrome bar: hostname with a leading "www." stripped. */
 export function domainOf(url: string): string {
   try {

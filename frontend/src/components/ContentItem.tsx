@@ -7,15 +7,16 @@
 //    immediately, so the fill toggles with no local component state.
 //  - read-time / SrcBadge: articles & papers show "(N min read)"; other source
 //    types show "(<source label>)" (matches the prototype's SRC_NAME copy).
-//  - `showEditions` (#27, ADR-0001): when true AND the Content has appearances in MORE
-//    than one edition, an additive "TLDR · AI" provenance badge renders in the metadata
-//    cluster. Default false so the Editorial view is untouched, and single-edition
-//    Content stays pixel-identical (today it shows no edition here at all).
+//  - `showEditions` (#27 -> #42, ADR-0001): when true (SearchView is the only caller),
+//    the metadata cluster shows the deduped primary-first edition list (#27 ordering)
+//    PLUS relative recency from the primary appearance's issue date — e.g.
+//    "TLDR · AI · 3d ago" — rendered UNCONDITIONALLY (#42 superseded the old >1-editions
+//    gate on the search surface). Default false so the Editorial view is untouched.
 
 import { useState } from "react";
 import { analytics, type SourceView } from "../analytics";
 import { useToggleSave } from "../api/queries";
-import { editionNames } from "../format";
+import { editionNames, formatRecency } from "../format";
 import { platform } from "../platform";
 import type { Content } from "../types";
 import { FaviconChip, Ico, ResourcePill, Star } from "./atoms";
@@ -34,8 +35,17 @@ function metaLabel(c: Content): string {
   return `(${SRC_NAME[c.content_type] ?? c.content_type})`;
 }
 
-// star + share action cluster. The Star toggles the Save via useToggleSave (#5).
-function Actions({ it, size = 19 }: { it: Content; size?: number }) {
+// star + share action cluster. The Star toggles the Save via useToggleSave (#5);
+// the share popover gets the Content + surface so its targets are real (#39).
+function Actions({
+  it,
+  sourceView,
+  size = 19,
+}: {
+  it: Content;
+  sourceView: SourceView;
+  size?: number;
+}) {
   const [shareOpen, setShareOpen] = useState(false);
   const toggle = useToggleSave();
   return (
@@ -66,7 +76,9 @@ function Actions({ it, size = 19 }: { it: Content; size?: number }) {
         >
           <Ico name="share" s={size - 2} />
         </button>
-        {shareOpen && <SharePop onClose={() => setShareOpen(false)} />}
+        {shareOpen && (
+          <SharePop content={it} sourceView={sourceView} onClose={() => setShareOpen(false)} />
+        )}
       </div>
     </div>
   );
@@ -160,19 +172,21 @@ export function ContentItem({
           <span className="mono" style={{ fontSize: 12, color: "var(--ink-4)" }}>
             {it.domain}
           </span>
-          {/* Multi-edition provenance badge (#27) — only when >1 edition, so
-              single-appearance results render exactly as before (no edition). */}
-          {editions.length > 1 && (
+          {/* Search metadata (#42, supersedes the #27 >1-editions gate on this surface):
+              edition(s) — primary first, deduped (#27 semantics) — plus recency from the
+              primary appearance's issue date, in the same light mono idiom as the domain.
+              editions is non-empty iff showEditions (the primary edition always exists). */}
+          {editions.length > 0 && (
             <span
               className="mono"
               style={{ fontSize: 12, color: "var(--ink-4)", whiteSpace: "nowrap" }}
             >
-              {editions.join(" · ")}
+              {[...editions, formatRecency(it.issue.published_at)].join(" · ")}
             </span>
           )}
           {it.resources && it.resources.map((r, i) => <ResourcePill key={i} r={r} />)}
         </div>
-        <Actions it={it} />
+        <Actions it={it} sourceView={sourceView} />
       </div>
     </article>
   );

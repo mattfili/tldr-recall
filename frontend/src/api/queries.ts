@@ -29,6 +29,7 @@ import type {
   LibraryFilters,
   Page,
   SearchFilters,
+  SearchResponse,
 } from "../types";
 
 export const queryKeys = {
@@ -146,24 +147,36 @@ export function useCollections() {
 
 // ── writes (#5 / M2) ──
 
-/** Flip `starred` on a single Content (by id) within any cached shape (no-op for others). */
-function flipStarred(content: Content, id: string, next: boolean): Content {
+/**
+ * Flip `starred` on a single Content-shaped item (by id) within any cached shape
+ * (no-op for others). Generic so SearchHit extras (score, match_explanation)
+ * survive the spread (#41).
+ */
+function flipStarred<T extends Content>(content: T, id: string, next: boolean): T {
   return content.id === id ? { ...content, starred: next } : content;
 }
 
-/** Map the flip across one cached library InfiniteData page set. */
-function flipLibraryData(
-  data: InfiniteData<Page<Content>> | undefined,
+/**
+ * Map the flip across one cached InfiniteData page set — library `Page<Content>`
+ * or search `SearchResponse` (#41). The page spread preserves extra page fields
+ * (e.g. SearchResponse.detected); the `as P` only re-asserts what the spread
+ * already guarantees structurally (TS cannot prove a generic spread round-trips).
+ */
+function flipPagedData<P extends Page<Content>>(
+  data: InfiniteData<P> | undefined,
   id: string,
   next: boolean,
-): InfiniteData<Page<Content>> | undefined {
+): InfiniteData<P> | undefined {
   if (!data) return data;
   return {
     ...data,
-    pages: data.pages.map((page) => ({
-      ...page,
-      items: page.items.map((it) => flipStarred(it, id, next)),
-    })),
+    pages: data.pages.map(
+      (page) =>
+        ({
+          ...page,
+          items: page.items.map((it) => flipStarred(it, id, next)),
+        }) as P,
+    ),
   };
 }
 
@@ -189,9 +202,11 @@ function flipIssueDetail(
  * mutationFn({id, next}) calls PUT /saves (star) or DELETE /saves (soft unstar), each
  * returning the full SaveState. onMutate cancels in-flight queries, snapshots every cache
  * that carries a Content, and flips `starred` for the id across ALL of them — library
- * InfiniteData (every filter variant, matched by the ["library"] prefix), issue/latest
- * IssueDetail, and the single content(id). onError restores the snapshots; onSettled
- * invalidates so the authoritative membership (incl. the "Starred only" filter) re-fetches.
+ * InfiniteData (every filter variant, matched by the ["library"] prefix), search
+ * InfiniteData (every cached query/filters variant, matched by the ["search"] prefix — #41),
+ * issue/latest IssueDetail, and the single content(id). onError restores the snapshots;
+ * onSettled invalidates so the authoritative membership (incl. the "Starred only" filter
+ * and starred-filtered searches) re-fetches.
  *
  * `contentType` rides along only for the save_toggled analytics event (#24) — capturing in
  * onMutate makes this hook the single seam point for every Star call site.
@@ -214,6 +229,7 @@ export function useToggleSave() {
       });
       await Promise.all([
         qc.cancelQueries({ queryKey: ["library"] }),
+        qc.cancelQueries({ queryKey: ["search"] }),
         qc.cancelQueries({ queryKey: ["issue"] }),
         qc.cancelQueries({ queryKey: queryKeys.content(id) }),
       ]);
@@ -222,12 +238,18 @@ export function useToggleSave() {
       const libraries = qc.getQueriesData<InfiniteData<Page<Content>>>({
         queryKey: ["library"],
       });
+      const searches = qc.getQueriesData<InfiniteData<SearchResponse>>({
+        queryKey: ["search"],
+      });
       const issues = qc.getQueriesData<IssueDetail>({ queryKey: ["issue"] });
       const content = qc.getQueryData<Content>(queryKeys.content(id));
 
       // Apply the optimistic flip.
       qc.setQueriesData<InfiniteData<Page<Content>>>({ queryKey: ["library"] }, (data) =>
-        flipLibraryData(data, id, next),
+        flipPagedData(data, id, next),
+      );
+      qc.setQueriesData<InfiniteData<SearchResponse>>({ queryKey: ["search"] }, (data) =>
+        flipPagedData(data, id, next),
       );
       qc.setQueriesData<IssueDetail>({ queryKey: ["issue"] }, (data) =>
         flipIssueDetail(data, id, next),
@@ -236,16 +258,18 @@ export function useToggleSave() {
         qc.setQueryData<Content>(queryKeys.content(id), flipStarred(content, id, next));
       }
 
-      return { libraries, issues, content, id };
+      return { libraries, searches, issues, content, id };
     },
     onError: (_err, _vars, ctx) => {
       if (!ctx) return;
       for (const [key, data] of ctx.libraries) qc.setQueryData(key, data);
+      for (const [key, data] of ctx.searches) qc.setQueryData(key, data);
       for (const [key, data] of ctx.issues) qc.setQueryData(key, data);
       qc.setQueryData(queryKeys.content(ctx.id), ctx.content);
     },
     onSettled: (_data, _err, { id }) => {
       qc.invalidateQueries({ queryKey: ["library"] });
+      qc.invalidateQueries({ queryKey: ["search"] });
       qc.invalidateQueries({ queryKey: ["issue"] });
       qc.invalidateQueries({ queryKey: queryKeys.content(id) });
     },

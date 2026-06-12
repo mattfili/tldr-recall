@@ -26,7 +26,7 @@ import {
   type IpcMainInvokeEvent,
 } from "electron";
 import { BROWSER_CHANNELS } from "./channels";
-import { domainOf, validateExternalUrl } from "./validate-url";
+import { domainOf, validateExternalUrl, validateMailtoUrl } from "./validate-url";
 
 // Height (px) of the chrome bar the renderer draws while the browser is open.
 // MUST match CHROME_BAR_HEIGHT in frontend/src/components/BrowserChrome.tsx.
@@ -186,6 +186,14 @@ export function attachBrowser(win: BrowserWindow): void {
     // Re-validate: only ever hand http(s) to the OS.
     const url = validateExternalUrl(view.webContents.getURL());
     if (url) void shell.openExternal(url);
+  });
+  // #39 share-by-email: SYSTEM-open ONLY — the mailto: draft goes straight to
+  // shell.openExternal and NEVER near the in-app WebContentsView (whose
+  // http(s)-only validateExternalUrl posture is untouched). Registered through
+  // `handle()` so it inherits the trusted-sender validation above.
+  handle(BROWSER_CHANNELS.openMailto, (_e, url) => {
+    const ok = validateMailtoUrl(url);
+    if (ok) void shell.openExternal(ok);
   });
 
   win.once("closed", () => {

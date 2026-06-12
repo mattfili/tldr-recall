@@ -58,7 +58,9 @@ function RowActions({ it, size = 17 }: { it: Content; size?: number }) {
         >
           <Ico name="share" s={size - 2} />
         </button>
-        {shareOpen && <SharePop onClose={() => setShareOpen(false)} />}
+        {shareOpen && (
+          <SharePop content={it} sourceView="library" onClose={() => setShareOpen(false)} />
+        )}
       </div>
     </div>
   );

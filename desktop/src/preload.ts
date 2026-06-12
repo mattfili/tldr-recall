@@ -43,4 +43,12 @@ contextBridge.exposeInMainWorld("recall", {
       };
     },
   },
+  system: {
+    // #39 share-by-email: a mailto: draft opened via the OS default mail client
+    // (main process validates mailto:-only, then shell.openExternal — never the
+    // in-app view). Channel literal inlined (sandboxed preload) — keep in sync
+    // with desktop/src/channels.ts BROWSER_CHANNELS.openMailto.
+    openMailto: (url: string): Promise<void> =>
+      ipcRenderer.invoke("recall:system:openMailto", url),
+  },
 });

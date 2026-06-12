@@ -3,9 +3,14 @@
 // Render test for the unified SearchView (#7): mounts it against a mocked backend, asserts the
 // input + suggestions render, submitting a suggestion produces a results list reusing ContentItem
 // (hit titles render), and the dropped "haven't read" suggestion is absent (ADR-0002).
-// Also covers the multi-edition provenance badge (#27, ADR-0001): multi-appearance hits show
-// "TLDR · AI" (deduped across duplicate same-edition sightings), single-appearance hits show
-// no edition text at all (unchanged).
+// Also covers the search metadata cluster (#42, superseding #27's >1-editions gate on this
+// surface): EVERY hit shows edition(s) + recency — multi-appearance hits show the deduped
+// primary-first list ("TLDR · AI · 3d ago", #27 ordering preserved) and single-appearance hits
+// now show their edition too ("TLDR · 3d ago").
+//
+// Fixture dates are computed RELATIVE TO TODAY (3 days ago) so the recency assertion is
+// deterministic without fake timers (which fight waitFor/react-query). Compact-date and
+// cross-year boundaries are covered by the pure formatter tests in format.test.ts.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -17,6 +22,18 @@ import type { CollectionRef, SearchResponse } from "../types";
 // The mock is module-wide; the pre-existing tests simply never look at it.
 const analyticsMock = vi.hoisted(() => ({ capture: vi.fn() }));
 vi.mock("../analytics", () => ({ analytics: analyticsMock }));
+
+/** Local 'YYYY-MM-DD' for `n` days before today — keeps recency assertions clock-proof. */
+function isoDaysAgo(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
+// Primary issue date for BOTH hits: 3 days ago -> recency renders "3d ago" (#42).
+const PUBLISHED = isoDaysAgo(3);
 
 const SEARCH_RESPONSE: SearchResponse = {
   items: [
@@ -32,10 +49,10 @@ const SEARCH_RESPONSE: SearchResponse = {
       resources: null,
       edition: { key: "tldr", name: "TLDR" },
       category: { slug: "tools", label: "Tools", hue: "var(--c-tools)" },
-      issue: { id: "iss", issue_number: "#1", published_at: "2026-06-02" },
+      issue: { id: "iss", issue_number: "#1", published_at: PUBLISHED },
       appearances: [
         {
-          issue: { id: "iss", issue_number: "#1", published_at: "2026-06-02" },
+          issue: { id: "iss", issue_number: "#1", published_at: PUBLISHED },
           edition: { key: "tldr", name: "TLDR" },
           category: { slug: "tools", label: "Tools", hue: "var(--c-tools)" },
           position: 0,
@@ -66,10 +83,10 @@ const SEARCH_RESPONSE: SearchResponse = {
       resources: null,
       edition: { key: "tldr", name: "TLDR" },
       category: { slug: "bigtech", label: "Big Tech", hue: "var(--c-bigtech)" },
-      issue: { id: "iss", issue_number: "#1", published_at: "2026-06-02" },
+      issue: { id: "iss", issue_number: "#1", published_at: PUBLISHED },
       appearances: [
         {
-          issue: { id: "iss", issue_number: "#1", published_at: "2026-06-02" },
+          issue: { id: "iss", issue_number: "#1", published_at: PUBLISHED },
           edition: { key: "tldr", name: "TLDR" },
           category: { slug: "bigtech", label: "Big Tech", hue: "var(--c-bigtech)" },
           position: 1,
@@ -181,25 +198,25 @@ describe("<SearchView/>", () => {
     await waitFor(() => expect(screen.getByText("2 results")).toBeTruthy());
   });
 
-  it("shows a deduped multi-edition badge on multi-appearance hits (#27)", async () => {
+  it("shows the deduped edition list + recency on multi-appearance hits (#27 ordering, #42)", async () => {
     renderSearch();
     fireEvent.click(screen.getByRole("button", { name: "github repos about agents" }));
     await waitFor(() => expect(screen.getByText("2 results")).toBeTruthy());
 
-    // Three appearances (TLDR, AI, TLDR-again) dedupe to exactly ONE "TLDR · AI" badge —
-    // not "TLDR · AI · TLDR".
-    expect(screen.getAllByText("TLDR · AI")).toHaveLength(1);
-    expect(screen.queryByText("TLDR · AI · TLDR")).toBeNull();
+    // Three appearances (TLDR, AI, TLDR-again) dedupe to exactly ONE primary-first
+    // "TLDR · AI" list — never "TLDR · AI · TLDR" — followed by the recency (#42).
+    expect(screen.getAllByText("TLDR · AI · 3d ago")).toHaveLength(1);
+    expect(screen.queryByText(/TLDR · AI · TLDR/)).toBeNull();
   });
 
-  it("renders single-appearance hits with NO edition text (unchanged by #27)", async () => {
+  it("renders single-appearance hits WITH their edition + recency in search (#42)", async () => {
     renderSearch();
     fireEvent.click(screen.getByRole("button", { name: "github repos about agents" }));
     await waitFor(() => expect(screen.getByText("2 results")).toBeTruthy());
 
-    // The single-appearance hit shows no edition badge at all: the only edition text in the
-    // whole results list is the multi-edition hit's joined badge, and no standalone "TLDR".
-    expect(screen.queryByText("TLDR")).toBeNull();
+    // #42 inverts the old #27 expectation on the search surface: the single-appearance hit
+    // now shows its edition + recency too.
+    expect(screen.getAllByText("TLDR · 3d ago")).toHaveLength(1);
   });
 });
 
