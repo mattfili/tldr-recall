@@ -13,9 +13,15 @@ from recall.schemas.common import EditionRef
 
 
 class Edition(EditionRef):
-    """One edition in ``GET /editions``: the ref + the reader's unread-issue count."""
+    """One edition in ``GET /editions``: the ref + the reader's unread state.
+
+    ``latest_unread`` (#49) is what the rail dot keys off — whether the edition's NEWEST
+    issue is unread. ``unread_count`` is the full backlog count (a freshly ingested
+    historical corpus starts fully unread, so the count alone would pin dots forever).
+    """
 
     unread_count: int
+    latest_unread: bool
 
 
 __all__ = ["Edition"]

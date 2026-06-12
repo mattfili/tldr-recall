@@ -20,9 +20,9 @@ import type {
 } from "./types";
 
 const EDITIONS: Edition[] = [
-  { key: "ai", name: "TLDR AI", unread_count: 1 },
-  { key: "founders", name: "TLDR Founders", unread_count: 1 },
-  { key: "tldr", name: "TLDR", unread_count: 1 },
+  { key: "ai", name: "TLDR AI", unread_count: 1, latest_unread: true },
+  { key: "founders", name: "TLDR Founders", unread_count: 1, latest_unread: true },
+  { key: "tldr", name: "TLDR", unread_count: 1, latest_unread: true },
 ];
 
 const CATEGORIES: CategoryRef[] = [
@@ -239,12 +239,12 @@ describe("<App/> edition rail unread dots (#19)", () => {
     items: TLDR_ISSUES.items.map((i) => ({ ...i, read_state: "read" })),
   };
 
-  it("dots every edition with unread_count > 0 and none at 0", async () => {
+  it("dots every edition with latest_unread and none without", async () => {
     renderApp({
       editions: [
-        { key: "ai", name: "TLDR AI", unread_count: 1 },
-        { key: "founders", name: "TLDR Founders", unread_count: 2 },
-        { key: "tldr", name: "TLDR", unread_count: 0 },
+        { key: "ai", name: "TLDR AI", unread_count: 1, latest_unread: true },
+        { key: "founders", name: "TLDR Founders", unread_count: 2, latest_unread: true },
+        { key: "tldr", name: "TLDR", unread_count: 0, latest_unread: false },
       ],
       issues: READ_ISSUES,
     });
@@ -263,12 +263,12 @@ describe("<App/> edition rail unread dots (#19)", () => {
     ).toBeTruthy();
   });
 
-  it("renders no rail dots when every unread_count is 0", async () => {
+  it("renders no rail dots when no edition has latest_unread", async () => {
     renderApp({
       editions: [
-        { key: "ai", name: "TLDR AI", unread_count: 0 },
-        { key: "founders", name: "TLDR Founders", unread_count: 0 },
-        { key: "tldr", name: "TLDR", unread_count: 0 },
+        { key: "ai", name: "TLDR AI", unread_count: 0, latest_unread: false },
+        { key: "founders", name: "TLDR Founders", unread_count: 0, latest_unread: false },
+        { key: "tldr", name: "TLDR", unread_count: 0, latest_unread: false },
       ],
       issues: READ_ISSUES,
     });

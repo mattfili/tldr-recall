@@ -76,7 +76,7 @@ def test_editions_returns_three_seeded() -> None:
     keys = {e["key"] for e in body}
     assert keys == {"tldr", "ai", "founders"}
     for e in body:
-        assert set(e.keys()) == {"key", "name", "unread_count"}
+        assert set(e.keys()) == {"key", "name", "unread_count", "latest_unread"}
     names = {e["key"]: e["name"] for e in body}
     assert names["tldr"] == "TLDR"
     assert names["ai"] == "TLDR AI"
