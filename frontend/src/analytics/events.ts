@@ -45,7 +45,6 @@ export type AnalyticsEvents = {
   /**
    * An article was shared via the share popover (#39). edition/category are the
    * PRIMARY appearance's; `target` is the share affordance used (iMessage/Slack
-   * resolve to a copy fallback at the UI level but keep their own target value).
    */
   article_shared: {
     content_id: string;
@@ -54,7 +53,7 @@ export type AnalyticsEvents = {
     edition: string;
     category: string | null;
     source_view: SourceView;
-    target: "copy_link" | "email" | "imessage" | "slack";
+    target: "copy_link" | "email";
   };
 };
 

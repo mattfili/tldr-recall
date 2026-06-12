@@ -10,9 +10,8 @@
 //                  validated system-open IPC (shell.openExternal, mailto:-only,
 //                  NEVER the in-app WebContentsView). A stale desktop shell has
 //                  no platform.openMailto and gets the copy fallback instead.
-//  - iMessage / Slack -> v1-HONEST FALLBACK: there is no portable URL scheme to
-//                  open a draft in either app from web AND desktop, so both copy
-//                  the link and show "Copied!" — the user pastes it themselves.
+// (iMessage/Slack were dropped 2026-06-12 as redundant — both were copy
+// fallbacks anyway; Copy link covers them.)
 //
 // Every target fires the typed article_shared event (#39) through the analytics
 // seam (no-op without key/consent, like every #24 event).
@@ -24,12 +23,10 @@ import type { Content } from "../types";
 import { Ico } from "./atoms";
 import type { IcoName } from "./atoms";
 
-type ShareTarget = "imessage" | "email" | "slack" | "copy_link";
+type ShareTarget = "email" | "copy_link";
 
 const TARGETS: [IcoName, string, ShareTarget][] = [
-  ["message", "iMessage", "imessage"],
   ["mail", "Email", "email"],
-  ["slack", "Slack", "slack"],
   ["link", "Copy link", "copy_link"],
 ];
 
@@ -108,9 +105,8 @@ export function SharePop({
       }
       return;
     }
-    // copy_link is the real copy affordance; imessage/slack are the documented
-    // copy fallback (see the header comment) — all three share the hint.
-    copyWithHint(ic);
+    copyWithHint(ic); // copy_link
+
   };
 
   return (
