@@ -17,8 +17,9 @@ import type {
   SearchResponse,
 } from "../types";
 
-export const API_BASE_URL: string =
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+import { env } from "../env";
+
+export const API_BASE_URL: string = env.apiBaseUrl;
 
 /** Thrown when a request fails or returns a non-2xx status. */
 export class ApiError extends Error {

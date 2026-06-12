@@ -55,11 +55,18 @@ class Settings(BaseSettings):
 
     # ── CORS ──
     # Allowlist of browser origins permitted to call the API. Defaults cover the Vite
-    # dev server and the Electron renderer (which loads from a file:// origin).
+    # dev server, the Electron renderer (file:// origin), and webview hosts that send
+    # the literal "null" origin for file-served pages (the Expo mobile shell's DOM
+    # component in release builds). CORS is plumbing here, not security — the API is
+    # public with stub auth; any non-browser client bypasses CORS entirely.
     cors_allow_origins: list[str] = [
         "http://localhost:5173",
         "file://",
+        "null",
     ]
+    # Optional regex for origins that can't be enumerated (e.g. the Expo dev server's
+    # LAN-IP origin, http://192.168.x.x:8081). None = exact allowlist only.
+    cors_allow_origin_regex: str | None = None
 
     @property
     def embedder_name(self) -> str:

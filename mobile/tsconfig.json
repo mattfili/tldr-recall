@@ -1,0 +1,14 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "web-src/**/*.test.ts",
+    "web-src/**/*.test.tsx",
+    "web-src/main.tsx",
+    "web-src/vite-env.d.ts"
+  ]
+}
