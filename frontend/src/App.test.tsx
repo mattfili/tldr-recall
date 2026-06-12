@@ -6,15 +6,15 @@
 // recorded live shapes (editions, /issues?edition=tldr, /issues/{id}).
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
 import type { Content, CategoryRef, Edition, IssueDetail, IssueSummary, Page } from "./types";
 
 const EDITIONS: Edition[] = [
-  { key: "ai", name: "TLDR AI" },
-  { key: "founders", name: "TLDR Founders" },
-  { key: "tldr", name: "TLDR" },
+  { key: "ai", name: "TLDR AI", unread_count: 1 },
+  { key: "founders", name: "TLDR Founders", unread_count: 1 },
+  { key: "tldr", name: "TLDR", unread_count: 1 },
 ];
 
 const CATEGORIES: CategoryRef[] = [
@@ -117,7 +117,13 @@ const LIBRARY_PAGE: Page<Content> = {
   offset: 0,
 };
 
-function routeFetch(url: string, method: string): unknown {
+/** Per-render fixture overrides (#19 rail-dot tests vary the editions/issues payloads). */
+interface Fixtures {
+  editions: Edition[];
+  issues: Page<IssueSummary>;
+}
+
+function routeFetch(url: string, method: string, fixtures: Fixtures): unknown {
   // Writes (#5): mark-on-view + saves. EditorialView fires PUT /issues/{id}/read on mount.
   if (url.includes("/read") && method === "PUT") {
     const id = url.split("/issues/")[1]?.split("/")[0] ?? "";
@@ -127,10 +133,10 @@ function routeFetch(url: string, method: string): unknown {
     const id = url.split("/saves/")[1] ?? "";
     return { content_id: id, starred: method === "PUT" };
   }
-  if (url.endsWith("/editions")) return EDITIONS;
+  if (url.endsWith("/editions")) return fixtures.editions;
   if (url.endsWith("/categories")) return CATEGORIES;
   if (url.includes("/library")) return LIBRARY_PAGE;
-  if (url.includes("/issues?")) return TLDR_ISSUES;
+  if (url.includes("/issues?")) return fixtures.issues;
   if (url.includes("/issues/5e5e6fe1")) return TLDR_DETAIL;
   throw new Error(`unexpected fetch: ${url}`);
 }
@@ -153,24 +159,24 @@ afterEach(() => {
   localStorage.clear();
 });
 
-function renderApp() {
+function renderApp(overrides: Partial<Fixtures> = {}) {
+  const fixtures: Fixtures = { editions: EDITIONS, issues: TLDR_ISSUES, ...overrides };
   vi.stubGlobal("IntersectionObserver", NoopIntersectionObserver);
-  vi.stubGlobal(
-    "fetch",
-    vi.fn((input: unknown, init?: { method?: string }) => {
-      const url = String(input);
-      const method = init?.method ?? "GET";
-      return Promise.resolve(
-        new Response(JSON.stringify(routeFetch(url, method)), { status: 200 }),
-      );
-    }),
-  );
+  const fetchFn = vi.fn((input: unknown, init?: { method?: string }) => {
+    const url = String(input);
+    const method = init?.method ?? "GET";
+    return Promise.resolve(
+      new Response(JSON.stringify(routeFetch(url, method, fixtures)), { status: 200 }),
+    );
+  });
+  vi.stubGlobal("fetch", fetchFn);
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  render(
     <QueryClientProvider client={qc}>
       <App />
     </QueryClientProvider>,
   );
+  return { fetchFn };
 }
 
 describe("<App/> Editorial render", () => {
@@ -202,6 +208,78 @@ describe("<App/> Editorial render", () => {
     await waitFor(() => expect(screen.getByText("TLDR Founders")).toBeTruthy());
     expect(screen.getByText("TLDR AI")).toBeTruthy();
     // The TopBar logo + masthead also say "TLDR"; the rail button is present too.
+  });
+});
+
+describe("<App/> edition rail unread dots (#19)", () => {
+  // read_state "read" so the masthead's issue-nav dot never renders — every
+  // `aria-label="unread"` in these tests is a RAIL dot.
+  const READ_ISSUES: Page<IssueSummary> = {
+    ...TLDR_ISSUES,
+    items: TLDR_ISSUES.items.map((i) => ({ ...i, read_state: "read" })),
+  };
+
+  it("dots every edition with unread_count > 0 and none at 0", async () => {
+    renderApp({
+      editions: [
+        { key: "ai", name: "TLDR AI", unread_count: 1 },
+        { key: "founders", name: "TLDR Founders", unread_count: 2 },
+        { key: "tldr", name: "TLDR", unread_count: 0 },
+      ],
+      issues: READ_ISSUES,
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { level: 1, name: "TLDR" })).toBeTruthy(),
+    );
+
+    // Exactly the two unread editions are dotted (so the 0-count tldr has none) — and
+    // founders/ai are dotted even though tldr is the ACTIVE edition (cross-edition glance).
+    expect(screen.getAllByLabelText("unread")).toHaveLength(2);
+    expect(
+      within(screen.getByRole("button", { name: /TLDR Founders/ })).getByLabelText("unread"),
+    ).toBeTruthy();
+    expect(
+      within(screen.getByRole("button", { name: /TLDR AI/ })).getByLabelText("unread"),
+    ).toBeTruthy();
+  });
+
+  it("renders no rail dots when every unread_count is 0", async () => {
+    renderApp({
+      editions: [
+        { key: "ai", name: "TLDR AI", unread_count: 0 },
+        { key: "founders", name: "TLDR Founders", unread_count: 0 },
+        { key: "tldr", name: "TLDR", unread_count: 0 },
+      ],
+      issues: READ_ISSUES,
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { level: 1, name: "TLDR" })).toBeTruthy(),
+    );
+    expect(screen.queryAllByLabelText("unread")).toHaveLength(0);
+  });
+
+  it("invalidates the editions query when mark-on-view settles (dots refresh)", async () => {
+    const { fetchFn } = renderApp();
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { level: 1, name: "TLDR" })).toBeTruthy(),
+    );
+
+    const editionGets = () =>
+      fetchFn.mock.calls.filter(
+        ([input, init]) =>
+          String(input).endsWith("/editions") && (init?.method ?? "GET") === "GET",
+      ).length;
+
+    // EditorialView fires PUT /issues/{id}/read on display; useMarkIssueRead's onSettled
+    // invalidates the editions query, so GET /editions is fetched AGAIN after the mount fetch.
+    await waitFor(() => {
+      expect(
+        fetchFn.mock.calls.some(
+          ([input, init]) => String(input).includes("/read") && init?.method === "PUT",
+        ),
+      ).toBe(true);
+      expect(editionGets()).toBeGreaterThanOrEqual(2);
+    });
   });
 });
 

@@ -22,8 +22,14 @@ export interface EditionRef {
   name: string;
 }
 
-/** GET /editions returns a plain list of EditionRef (schemas/edition.py). */
-export type Edition = EditionRef;
+/**
+ * One edition in GET /editions (schemas/edition.py): the ref + the current reader's
+ * unread-issue count (#19, ADR-0002 — an issue is unread when the reader has no
+ * user_issue_state row for it or the row says "unread"). Drives the rail unread dots.
+ */
+export interface Edition extends EditionRef {
+  unread_count: number;
+}
 
 /**
  * `{slug, label, hue}` — a category reference (schemas/common.py CategoryRef).
