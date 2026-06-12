@@ -20,7 +20,7 @@
 import { useState } from "react";
 import { analytics } from "../analytics";
 import { useToggleSave } from "../api/queries";
-import { editionNames } from "../format";
+import { editionNames, formatRecency, latestPublishedAt } from "../format";
 import { platform } from "../platform";
 import type { Content } from "../types";
 import { Ico, ResourcePill, SrcIcon, Star } from "./atoms";
@@ -176,6 +176,18 @@ export function LibraryRow({
             style={{ fontSize: 11, color: "var(--ink-3)", minWidth: 96, textAlign: "right" }}
           >
             {editionNames(it).join(" · ")}
+          </span>
+        )}
+        {/* Latest release date (#51) — the most recent appearance's issue date, which for
+            a recycled story is later than the primary (earliest) appearance. Desktop only,
+            like the edition column. */}
+        {!mob && (
+          <span
+            className="mono"
+            data-testid="latest-date"
+            style={{ fontSize: 11, color: "var(--ink-4)", minWidth: 56, textAlign: "right" }}
+          >
+            {formatRecency(latestPublishedAt(it))}
           </span>
         )}
         <span
