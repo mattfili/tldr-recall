@@ -272,8 +272,9 @@ export function SearchView({
               ) : (
                 <>
                   {/* SearchHit is a Content superset — ContentItem renders a hit unchanged.
-                      showEditions adds the additive multi-edition provenance badge
-                      (#27, ADR-0001) when a hit appeared in more than one edition. */}
+                      showEditions (#42, superseding the #27 >1-editions gate here) renders
+                      every hit's edition(s) + recency in the metadata cluster, e.g.
+                      "TLDR · AI · 3d ago". Editorial/Library are untouched. */}
                   {/* #24: a result click fires BOTH result_open (rank = 0-based index across
                       the flatMapped pages, i.e. the global position) and article_open with
                       source_view="search" (the latter inside ContentItem.openArticle). */}

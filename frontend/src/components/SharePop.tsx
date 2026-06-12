@@ -1,19 +1,76 @@
-// Share popover, ported from tldr-web/prototype.jsx SharePop.
-// Outside-click closes it; "Copy link" shows a transient "Copied!" state.
+// Share popover, ported from tldr-web/prototype.jsx SharePop — made REAL in #39.
+// Outside-click closes it. The share target is the article's resolved URL (no
+// in-app deep links exist in v1).
+//
+// Per-target behavior (#39):
+//  - Copy link  -> clipboard write (navigator.clipboard, execCommand fallback) +
+//                  transient "Copied!".
+//  - Email      -> mailto: draft (subject = title, body = url) via
+//                  platform.openMailto — web navigates, desktop goes through the
+//                  validated system-open IPC (shell.openExternal, mailto:-only,
+//                  NEVER the in-app WebContentsView). A stale desktop shell has
+//                  no platform.openMailto and gets the copy fallback instead.
+//  - iMessage / Slack -> v1-HONEST FALLBACK: there is no portable URL scheme to
+//                  open a draft in either app from web AND desktop, so both copy
+//                  the link and show "Copied!" — the user pastes it themselves.
+//
+// Every target fires the typed article_shared event (#39) through the analytics
+// seam (no-op without key/consent, like every #24 event).
 
 import { useEffect, useState } from "react";
+import { analytics, type SourceView } from "../analytics";
+import { platform } from "../platform";
+import type { Content } from "../types";
 import { Ico } from "./atoms";
 import type { IcoName } from "./atoms";
 
-const TARGETS: [IcoName, string][] = [
-  ["message", "iMessage"],
-  ["mail", "Email"],
-  ["slack", "Slack"],
-  ["link", "Copy link"],
+type ShareTarget = "imessage" | "email" | "slack" | "copy_link";
+
+const TARGETS: [IcoName, string, ShareTarget][] = [
+  ["message", "iMessage", "imessage"],
+  ["mail", "Email", "email"],
+  ["slack", "Slack", "slack"],
+  ["link", "Copy link", "copy_link"],
 ];
 
-export function SharePop({ onClose }: { onClose: () => void }) {
-  const [copied, setCopied] = useState(false);
+/**
+ * Copy `text` to the clipboard: navigator.clipboard first, hidden-textarea
+ * execCommand("copy") when the async API is unavailable or rejects. Best-effort
+ * — never throws into the popover.
+ */
+async function copyText(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return;
+  } catch {
+    // clipboard API unavailable (older WebViews) or permission-rejected — fall through.
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+  } catch {
+    // nothing left to try — the "Copied!" hint stays best-effort.
+  }
+}
+
+export function SharePop({
+  content,
+  sourceView,
+  onClose,
+}: {
+  content: Content;
+  /** Which surface the popover renders in (#24/#39 analytics). */
+  sourceView: SourceView;
+  onClose: () => void;
+}) {
+  // Which row is showing its transient "Copied!" state (any copy-fallback row).
+  const [copiedTarget, setCopiedTarget] = useState<IcoName | null>(null);
 
   useEffect(() => {
     const off = (e: PointerEvent) => {
@@ -23,6 +80,38 @@ export function SharePop({ onClose }: { onClose: () => void }) {
     document.addEventListener("pointerdown", off, true);
     return () => document.removeEventListener("pointerdown", off, true);
   }, [onClose]);
+
+  const copyWithHint = (ic: IcoName) => {
+    void copyText(content.url);
+    setCopiedTarget(ic);
+    setTimeout(onClose, 650);
+  };
+
+  const share = (ic: IcoName, target: ShareTarget) => {
+    analytics.capture("article_shared", {
+      content_id: content.id,
+      content_type: content.content_type,
+      domain: content.domain,
+      edition: content.edition.key,
+      category: content.category?.slug ?? null,
+      source_view: sourceView,
+      target,
+    });
+    if (target === "email") {
+      const mailto = `mailto:?subject=${encodeURIComponent(content.title)}&body=${encodeURIComponent(content.url)}`;
+      if (platform.openMailto) {
+        platform.openMailto(mailto);
+        onClose();
+      } else {
+        // Stale desktop shell without the system-open bridge: documented copy fallback.
+        copyWithHint(ic);
+      }
+      return;
+    }
+    // copy_link is the real copy affordance; imessage/slack are the documented
+    // copy fallback (see the header comment) — all three share the hint.
+    copyWithHint(ic);
+  };
 
   return (
     <div
@@ -41,15 +130,10 @@ export function SharePop({ onClose }: { onClose: () => void }) {
         minWidth: 168,
       }}
     >
-      {TARGETS.map(([ic, label]) => (
+      {TARGETS.map(([ic, label, target]) => (
         <button
           key={ic}
-          onClick={() => {
-            if (ic === "link") {
-              setCopied(true);
-              setTimeout(onClose, 650);
-            } else onClose();
-          }}
+          onClick={() => share(ic, target)}
           style={{
             display: "flex",
             alignItems: "center",
@@ -70,9 +154,9 @@ export function SharePop({ onClose }: { onClose: () => void }) {
           onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
         >
           <span style={{ color: "var(--ink-3)" }}>
-            <Ico name={copied && ic === "link" ? "check" : ic} s={17} />
+            <Ico name={copiedTarget === ic ? "check" : ic} s={17} />
           </span>
-          {copied && ic === "link" ? "Copied!" : label}
+          {copiedTarget === ic ? "Copied!" : label}
         </button>
       ))}
     </div>

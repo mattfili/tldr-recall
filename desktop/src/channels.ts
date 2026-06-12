@@ -12,6 +12,8 @@ export const BROWSER_CHANNELS = {
   goBack: "recall:browser:goBack",
   goForward: "recall:browser:goForward",
   openInSystem: "recall:browser:openInSystem",
+  /** #39 share-by-email: mailto: -> shell.openExternal ONLY (preload inlines the literal). */
+  openMailto: "recall:system:openMailto",
   /** main -> renderer state push (BrowserState payload). */
   state: "recall:browser:state",
 } as const;

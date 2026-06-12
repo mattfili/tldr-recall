@@ -31,6 +31,28 @@ export function formatMastheadDate(iso: string): string {
 }
 
 /**
+ * Compact relative recency for the search metadata cluster (#42). Parses a
+ * 'YYYY-MM-DD' API date as a LOCAL date (same idiom as formatMastheadDate;
+ * malformed input is returned unchanged) and renders, relative to `now`
+ * (injectable for tests, defaults to the real clock):
+ *   - same day or future  -> "today"
+ *   - 1–6 days ago        -> "3d ago"
+ *   - >=7 days, same year -> "May 28"
+ *   - earlier years       -> "Dec 12 '25"
+ */
+export function formatRecency(iso: string, now: Date = new Date()): string {
+  const [y, m, d] = iso.split("-").map((n) => parseInt(n, 10));
+  if (!y || !m || !d) return iso;
+  const published = new Date(y, m - 1, d);
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dayDiff = Math.round((startOfToday.getTime() - published.getTime()) / 86_400_000);
+  if (dayDiff <= 0) return "today";
+  if (dayDiff < 7) return `${dayDiff}d ago`;
+  if (y === now.getFullYear()) return `${MONTHS[m - 1]} ${d}`;
+  return `${MONTHS[m - 1]} ${d} '${String(y % 100).padStart(2, "0")}`;
+}
+
+/**
  * Every edition a Content appeared in, deduped by edition key, PRIMARY edition
  * first (ADR-0001 — the flat `edition` stays the displayed appearance), then the
  * remaining editions in stable appearances[] order. A Content can appear twice in

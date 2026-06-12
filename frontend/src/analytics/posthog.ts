@@ -5,7 +5,7 @@
 //
 // Privacy: anonymous device id only (posthog's default anonymous mode) — identify() is
 // NEVER called. Autocapture, pageviews, and session recording are all off; the only
-// traffic is the four explicit events in events.ts.
+// traffic is the five explicit events in events.ts.
 
 import type { AnalyticsSink } from "./events";
 
