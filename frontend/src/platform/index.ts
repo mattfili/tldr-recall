@@ -60,10 +60,27 @@ export interface RecallBridge {
 declare global {
   interface Window {
     recall?: RecallBridge;
+    /** Set by the Expo mobile shell's bootstrap module BEFORE any frontend import. */
+    __RECALL_MOBILE__?: boolean;
+    /** Native open-in-browser, assigned by the mobile DOM component at render time
+        (props arrive after module evaluation — hence the lazy lookup below). */
+    __RECALL_OPEN_EXTERNAL__?: (url: string) => void | Promise<void>;
   }
 }
 
+/** Expo DOM-component shell: article links open the NATIVE in-app browser
+    (expo-web-browser). The function prop lands on window after import time,
+    so openExternal resolves it lazily per call; window.open is the fallback. */
+const mobilePlatform: Platform = {
+  openExternal: (url: string) => {
+    if (window.__RECALL_OPEN_EXTERNAL__) void window.__RECALL_OPEN_EXTERNAL__(url);
+    else window.open(url, "_blank", "noopener");
+  },
+  isDesktop: false,
+};
+
 function detectPlatform(): Platform {
+  if (typeof window !== "undefined" && window.__RECALL_MOBILE__) return mobilePlatform;
   const bridge = typeof window !== "undefined" ? window.recall : undefined;
   // Require the browser surface, not just the flag: an old shell without the
   // in-app browser must keep getting working links via window.open.

@@ -29,6 +29,9 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_allow_origins,
+        # Optional pattern for origins that can't be enumerated — the Expo dev
+        # server's LAN-IP origin for the mobile shell (set via env on Railway).
+        allow_origin_regex=settings.cors_allow_origin_regex,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

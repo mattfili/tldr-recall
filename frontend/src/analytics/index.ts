@@ -9,6 +9,7 @@
 // Otherwise the sink is a no-op: zero capture paths fire, zero network, and posthog-js is
 // never even loaded (it lives behind a dynamic import in posthog.ts).
 
+import { env } from "../env";
 import { getStoredConsent, isDntEnabled, storeConsent, type ConsentChoice } from "./consent";
 import type { Analytics, AnalyticsEventName, AnalyticsSink } from "./events";
 import { loadPosthog } from "./posthog";
@@ -75,7 +76,7 @@ export function createAnalytics(config: AnalyticsConfig): AnalyticsSink {
 }
 
 function envKey(): string | undefined {
-  const key = import.meta.env.VITE_POSTHOG_KEY;
+  const key = env.posthogKey;
   return key && key.trim().length > 0 ? key : undefined;
 }
 
@@ -88,7 +89,7 @@ export function hasAnalyticsKey(): boolean {
 export function initAnalytics(): void {
   sink = createAnalytics({
     key: envKey(),
-    host: import.meta.env.VITE_POSTHOG_HOST,
+    host: env.posthogHost,
     consent: getStoredConsent(),
     dnt: isDntEnabled(),
   });

@@ -49,3 +49,15 @@ def test_health_db_ok_when_reachable() -> None:
     else:
         # No DB up locally (e.g. docker not running) — the field reports the failure.
         assert body["db"].startswith("error:")
+
+
+def test_cors_allows_null_origin_for_webview_hosts() -> None:
+    """The Expo mobile shell's DOM component is file-served -> Origin: null (#53).
+
+    CORSMiddleware must echo it back, or every fetch from the mobile webview is
+    blocked. ("null" sits in the default allowlist; CORS is plumbing, not security,
+    for this stub-auth API.)
+    """
+    resp = client.get("/health", headers={"Origin": "null"})
+    assert resp.status_code == 200
+    assert resp.headers.get("access-control-allow-origin") == "null"
